@@ -116,7 +116,7 @@ The installer asks for:
 2. **Storage path** (default: `/opt/minio/data`) — created automatically
 3. **Expose to host** — if yes, configure API (9000) and Console (9001) ports
 4. **Root username** (default: `minioadmin`)
-5. **Password** — auto-generated (24+ chars) or manual
+5. **Password** — auto-generated (24+ alphanumeric chars) or manual (letters and numbers, min 24)
 6. **Default bucket** — optional (default name: `storage`)
 7. **Public URLs** — optional; for domain + reverse proxy (HTTPS)
 
@@ -345,7 +345,7 @@ shellcheck setup.sh lib/*.sh
 ## Security Notes
 
 - `.env` is written with mode `600` and contains the root password
-- Use strong passwords; the installer enforces complexity for manual entry
+- Use strong passwords; manual entry requires at least 24 alphanumeric characters (uppercase, lowercase, and numbers)
 - For production, place MinIO behind a reverse proxy with TLS
 - Restrict host port exposure with firewall rules when enabled
 - Back up `.env` and data regularly

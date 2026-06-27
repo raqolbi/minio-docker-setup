@@ -136,8 +136,8 @@ validate_password() {
         return 1
     fi
 
-    if [[ ! "${password}" =~ [^A-Za-z0-9] ]]; then
-        log_error "Password must contain at least one symbol."
+    if [[ ! "${password}" =~ ^[A-Za-z0-9]+$ ]]; then
+        log_error "Password must contain letters and numbers only (no symbols)."
         return 1
     fi
 

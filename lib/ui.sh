@@ -187,11 +187,11 @@ collect_install_config() {
     case "${choice}" in
         1)
             MINIO_ROOT_PASSWORD=$(generate_password 24)
-            log_success "Generated secure password (24+ characters)."
+            log_success "Generated secure password (24+ alphanumeric characters)."
             ;;
         2)
             while true; do
-                read -r -s -p "Enter password (min 24 chars, mixed case, numbers, symbols): " MINIO_ROOT_PASSWORD
+                read -r -s -p "Enter password (min 24 chars, letters and numbers only): " MINIO_ROOT_PASSWORD
                 echo ""
                 read -r -s -p "Confirm password: " choice
                 echo ""
@@ -294,11 +294,11 @@ collect_reset_credentials() {
     case "${choice}" in
         1)
             MINIO_ROOT_PASSWORD=$(generate_password 24)
-            log_success "Generated secure password (24+ characters)."
+            log_success "Generated secure password (24+ alphanumeric characters)."
             ;;
         2)
             while true; do
-                read -r -s -p "Enter password (min 24 chars, mixed case, numbers, symbols): " MINIO_ROOT_PASSWORD
+                read -r -s -p "Enter password (min 24 chars, letters and numbers only): " MINIO_ROOT_PASSWORD
                 echo ""
                 read -r -s -p "Confirm password: " choice
                 echo ""

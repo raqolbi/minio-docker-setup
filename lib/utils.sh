@@ -131,16 +131,14 @@ generate_password() {
     local charset_upper='ABCDEFGHIJKLMNOPQRSTUVWXYZ'
     local charset_lower='abcdefghijklmnopqrstuvwxyz'
     local charset_digit='0123456789'
-    local charset_symbol='!@#$%^&*-_=+'
-    local all="${charset_upper}${charset_lower}${charset_digit}${charset_symbol}"
+    local all="${charset_upper}${charset_lower}${charset_digit}"
     local i char
 
     password+="${charset_upper:$((RANDOM % ${#charset_upper})):1}"
     password+="${charset_lower:$((RANDOM % ${#charset_lower})):1}"
     password+="${charset_digit:$((RANDOM % ${#charset_digit})):1}"
-    password+="${charset_symbol:$((RANDOM % ${#charset_symbol})):1}"
 
-    for ((i = 4; i < length; i++)); do
+    for ((i = 3; i < length; i++)); do
         char="${all:$((RANDOM % ${#all})):1}"
         password+="${char}"
     done
