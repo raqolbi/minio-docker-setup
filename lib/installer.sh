@@ -146,8 +146,8 @@ run_update_public_urls() {
     show_update_urls_banner
     collect_public_url_config "true"
 
-    log_progress "Regenerating configuration files..."
-    generate_config_files
+    log_info "Root password and other settings will not be modified."
+    update_public_url_config
 
     log_progress "Applying configuration (recreating container)..."
     compose_cmd up -d
@@ -160,6 +160,14 @@ run_update_public_urls() {
     log_success "Public URLs updated successfully."
     echo -e "  ${BOLD}MINIO_SERVER_URL:${NC}           ${MINIO_SERVER_URL:-(not set)}"
     echo -e "  ${BOLD}MINIO_BROWSER_REDIRECT_URL:${NC} ${MINIO_BROWSER_REDIRECT_URL:-(not set)}"
+    echo ""
+    log_info "Root password is unchanged — use the password from your original installation."
+
+    if [[ -n "${MINIO_BROWSER_REDIRECT_URL}" ]]; then
+        echo ""
+        log_warn "Open Console using the public URL above, not http://IP:${MINIO_CONSOLE_PORT}"
+        log_warn "Login via direct IP/port often fails when MINIO_BROWSER_REDIRECT_URL is set."
+    fi
     echo ""
 }
 

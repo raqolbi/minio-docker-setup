@@ -154,7 +154,9 @@ For an **existing installation** (including setups created before this feature),
 
 Or select **11) Update Public URLs** from the menu.
 
-The command regenerates `.env` and `docker-compose.yml`, then recreates the container to apply changes. You can also clear previously set URLs from the same prompt.
+The command updates only the public URL entries in `.env` and refreshes `docker-compose.yml` — **root password and other settings are not modified**. The container is then recreated to apply changes. You can also clear previously set URLs from the same prompt.
+
+**Important:** After setting `MINIO_BROWSER_REDIRECT_URL`, open the Console using that public URL (via your reverse proxy). Logging in at `http://<server-ip>:9001` often fails because MinIO redirects the session to the configured public URL.
 
 ## Update
 
@@ -269,6 +271,23 @@ sudo ufw allow 9001/tcp
 
 ```bash
 ./setup.sh status
+```
+
+### Console login fails after setting public URLs
+
+This is usually **not** a password change. MinIO stores root credentials on first install in the data volume; `update-urls` does not reset them.
+
+Common causes:
+
+1. **Wrong URL** — Use the public Console URL (`MINIO_BROWSER_REDIRECT_URL`), not `http://<ip>:9001`, after redirect is configured.
+2. **Reverse proxy** — Ensure your proxy forwards WebSocket and cookies to MinIO Console correctly.
+3. **Password mismatch in `.env`** — If an older version rewrote `.env`, the file may not match the password MinIO persisted on disk. Use the password from your original install summary, not a re-read from `.env`.
+
+To clear public URLs and restore direct IP access:
+
+```bash
+./setup.sh update-urls
+# Choose to clear existing public URLs when prompted
 ```
 
 ### Bucket creation failed

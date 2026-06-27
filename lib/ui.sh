@@ -112,6 +112,10 @@ collect_public_url_config() {
         done
 
         validate_public_urls_pair "true" || die "Invalid public URL configuration."
+
+        echo ""
+        log_warn "Access Console via the public Console URL after setup."
+        log_warn "Login at http://IP:port may fail once MINIO_BROWSER_REDIRECT_URL is active."
     elif [[ "${update_mode}" == "true" && ( -n "${MINIO_SERVER_URL}" || -n "${MINIO_BROWSER_REDIRECT_URL}" ) ]]; then
         if prompt_yes_no "Clear existing public URLs?" "N"; then
             MINIO_SERVER_URL=""

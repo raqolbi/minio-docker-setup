@@ -106,3 +106,50 @@ generate_config_files() {
     generate_env_file
     generate_compose_file
 }
+
+set_env_key_in_file() {
+    local key="$1"
+    local value="$2"
+    local env_file="${PROJECT_ROOT}/.env"
+    local tmp found=0 line
+
+    if [[ ! -f "${env_file}" ]]; then
+        die "Configuration not found: ${env_file}"
+    fi
+
+    tmp="$(mktemp "${env_file}.XXXXXX")"
+
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+        line="${line%$'\r'}"
+        if [[ "${line}" == "${key}="* ]]; then
+            found=1
+            if [[ -n "${value}" ]]; then
+                printf '%s=%s\n' "${key}" "$(quote_env_value "${value}")" >> "${tmp}"
+            fi
+            continue
+        fi
+        printf '%s\n' "${line}" >> "${tmp}"
+    done < "${env_file}"
+
+    if [[ "${found}" -eq 0 && -n "${value}" ]]; then
+        printf '%s=%s\n' "${key}" "$(quote_env_value "${value}")" >> "${tmp}"
+    fi
+
+    mv "${tmp}" "${env_file}"
+    chmod 600 "${env_file}"
+}
+
+patch_public_url_env() {
+    log_step "Updating public URL entries in .env (other values unchanged)..."
+
+    set_env_key_in_file "MINIO_SERVER_URL" "${MINIO_SERVER_URL:-}"
+    set_env_key_in_file "MINIO_BROWSER_REDIRECT_URL" "${MINIO_BROWSER_REDIRECT_URL:-}"
+
+    log_success "Public URL entries updated in .env"
+}
+
+update_public_url_config() {
+    log_progress "Updating public URL configuration..."
+    patch_public_url_env
+    generate_compose_file
+}
