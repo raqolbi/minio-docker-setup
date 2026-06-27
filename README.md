@@ -180,6 +180,8 @@ This will:
 
 **Buckets and object data are preserved.** IAM users, groups, and policies are cleared automatically and must be recreated if needed.
 
+Credentials are written literally into `docker-compose.yml` (not shell-escaped `.env` substitution) so special characters in passwords work correctly with Docker Compose.
+
 ## Update
 
 Pull the latest MinIO image and recreate the container:
@@ -303,7 +305,7 @@ Common causes:
 
 1. **Wrong URL** — Use the public Console URL (`MINIO_BROWSER_REDIRECT_URL`), not `http://<ip>:9001`, after redirect is configured.
 2. **Reverse proxy** — Ensure your proxy forwards WebSocket and cookies to MinIO Console correctly.
-3. **Password mismatch in `.env`** — If an older version rewrote `.env`, the file may not match the password MinIO persisted on disk. Use the password from your original install summary, not a re-read from `.env`.
+3. **Outdated installer** — Early versions escaped `$` in passwords for Bash, which broke Docker Compose env loading. Pull the latest code and reinstall or run `./setup.sh reset-password`.
 
 To clear public URLs and restore direct IP access:
 

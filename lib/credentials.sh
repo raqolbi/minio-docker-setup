@@ -82,6 +82,9 @@ patch_credentials_env() {
     set_env_key_in_file "MINIO_ROOT_PASSWORD" "${MINIO_ROOT_PASSWORD}"
 
     log_success "Root credentials updated in .env"
+
+    log_step "Updating credentials in docker-compose.yml..."
+    generate_compose_file
 }
 
 mc_verify_with_shared_config() {

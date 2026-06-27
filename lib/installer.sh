@@ -30,24 +30,35 @@ create_default_bucket() {
         fi
     else
         log_info "Using Docker network for bucket operations..."
-        docker run --rm --network "${MINIO_NETWORK}" minio/mc:latest \
-            alias set localminio "http://${MINIO_CONTAINER_NAME}:9000" \
-            "${MINIO_ROOT_USER}" "${MINIO_ROOT_PASSWORD}" --api S3v4
+        local mc_config endpoint
 
-        if docker run --rm --network "${MINIO_NETWORK}" minio/mc:latest \
-            ls "localminio/${bucket_name}" &>/dev/null; then
+        mc_config=$(mktemp -d)
+        endpoint="http://${MINIO_CONTAINER_NAME}:9000"
+
+        if docker run --rm --network "${MINIO_NETWORK}" \
+            -v "${mc_config}:/root/.mc" \
+            minio/mc:latest alias set localminio "${endpoint}" \
+            "${MINIO_ROOT_USER}" "${MINIO_ROOT_PASSWORD}" --api S3v4 && \
+           docker run --rm --network "${MINIO_NETWORK}" \
+            -v "${mc_config}:/root/.mc" \
+            minio/mc:latest ls "localminio/${bucket_name}" &>/dev/null; then
             log_info "Bucket '${bucket_name}' already exists."
-        else
-            docker run --rm --network "${MINIO_NETWORK}" minio/mc:latest \
-                mb "localminio/${bucket_name}"
-            log_success "Bucket '${bucket_name}' created."
-        fi
-
-        if docker run --rm --network "${MINIO_NETWORK}" minio/mc:latest \
-            ls "localminio/${bucket_name}" &>/dev/null; then
-            log_success "Verified bucket '${bucket_name}' exists."
+            rm -rf "${mc_config}"
             return 0
         fi
+
+        if docker run --rm --network "${MINIO_NETWORK}" \
+            -v "${mc_config}:/root/.mc" \
+            minio/mc:latest mb "localminio/${bucket_name}" && \
+           docker run --rm --network "${MINIO_NETWORK}" \
+            -v "${mc_config}:/root/.mc" \
+            minio/mc:latest ls "localminio/${bucket_name}" &>/dev/null; then
+            log_success "Bucket '${bucket_name}' created."
+            rm -rf "${mc_config}"
+            return 0
+        fi
+
+        rm -rf "${mc_config}"
     fi
 
     log_error "Failed to verify bucket '${bucket_name}'."
@@ -88,6 +99,11 @@ run_installation() {
     log_progress "Running post-start health checks..."
     if ! run_health_checks; then
         log_warn "Some health checks failed. Review logs with: ./setup.sh logs"
+    fi
+
+    log_progress "Verifying root credentials..."
+    if ! verify_root_credentials; then
+        die "Installation finished but login credentials could not be verified. Check: ./setup.sh logs"
     fi
 
     if [[ "${MINIO_CREATE_BUCKET:-false}" == "true" ]]; then

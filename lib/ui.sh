@@ -36,6 +36,8 @@ show_install_complete() {
     if [[ -n "${MINIO_SERVER_URL:-}" || -n "${MINIO_BROWSER_REDIRECT_URL:-}" ]]; then
         echo -e "  ${BOLD}Public API URL:${NC}    ${MINIO_SERVER_URL:-not set}"
         echo -e "  ${BOLD}Public Console URL:${NC} ${MINIO_BROWSER_REDIRECT_URL:-not set}"
+        echo ""
+        log_warn "Log in via the Public Console URL above — not http://IP:${MINIO_CONSOLE_PORT}"
     fi
 
     echo -e "  ${BOLD}Username:${NC}          ${MINIO_ROOT_USER}"

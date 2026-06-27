@@ -5,8 +5,8 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_ROOT_USER: {{MINIO_ROOT_USER_YAML}}
+      MINIO_ROOT_PASSWORD: {{MINIO_ROOT_PASSWORD_YAML}}
 {{PUBLIC_URL_ENV_SECTION}}
     volumes:
       - {{MINIO_DATA_PATH}}:/data

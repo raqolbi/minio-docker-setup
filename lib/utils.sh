@@ -149,31 +149,38 @@ generate_password() {
     echo "${password}" | fold -w1 | shuf | tr -d '\n'
 }
 
-escape_env_value() {
+# Docker Compose .env values — single-quoted literals (no shell \$ escaping).
+quote_env_value() {
     local value="$1"
-    local backtick=$'\`'
 
-    value="${value//\\/\\\\}"
-    value="${value//\"/\\\"}"
-    value="${value//\$/\\$}"
-    value="${value//${backtick}/\\${backtick}}"
-    printf '%s' "${value}"
+    value="${value//\'/\'\'}"
+    printf "'%s'" "${value}"
 }
 
-quote_env_value() {
-    printf '"%s"' "$(escape_env_value "$1")"
+# YAML single-quoted string for docker-compose.yml.
+yaml_single_quote() {
+    local value="$1"
+
+    value="${value//\'/\'\'}"
+    printf "'%s'" "${value}"
 }
 
 parse_dotenv_value() {
     local value="$1"
 
+    if [[ "${#value}" -ge 2 && "${value:0:1}" == "'" && "${value: -1}" == "'" ]]; then
+        value="${value:1:${#value}-2}"
+        value="${value//\'\'/\'}"
+        printf '%s' "${value}"
+        return 0
+    fi
+
     if [[ "${#value}" -ge 2 && "${value:0:1}" == '"' && "${value: -1}" == '"' ]]; then
         value="${value:1:${#value}-2}"
         value="${value//\\\"/\"}"
-        value="${value//\\\$/\$}"
         value="${value//\\\\/\\}"
-    elif [[ "${#value}" -ge 2 && "${value:0:1}" == "'" && "${value: -1}" == "'" ]]; then
-        value="${value:1:${#value}-2}"
+        printf '%s' "${value}"
+        return 0
     fi
 
     printf '%s' "${value}"

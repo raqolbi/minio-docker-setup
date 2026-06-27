@@ -19,10 +19,20 @@ replace_placeholder() {
     printf '%s' "${result}"
 }
 
+write_env_line() {
+    local key="$1"
+    local value="$2"
+
+    if [[ -z "${value}" && "${key}" =~ ^(MINIO_SERVER_URL|MINIO_BROWSER_REDIRECT_URL|MINIO_BUCKET)$ ]]; then
+        return 0
+    fi
+
+    printf '%s=%s\n' "${key}" "$(quote_env_value "${value}")"
+}
+
 generate_env_file() {
     local template="${PROJECT_ROOT}/.env.tpl"
     local output="${PROJECT_ROOT}/.env"
-    local line
 
     log_step "Generating .env configuration..."
 
@@ -32,26 +42,18 @@ generate_env_file() {
 
     : > "${output}"
 
-    while IFS= read -r line || [[ -n "${line}" ]]; do
-        line=$(replace_placeholder "${line}" '{{MINIO_CONTAINER_NAME}}' "${MINIO_CONTAINER_NAME}")
-        line=$(replace_placeholder "${line}" '{{MINIO_ROOT_USER}}' "${MINIO_ROOT_USER}")
-        line=$(replace_placeholder "${line}" '{{MINIO_ROOT_PASSWORD}}' "${MINIO_ROOT_PASSWORD}")
-        line=$(replace_placeholder "${line}" '{{MINIO_API_PORT}}' "${MINIO_API_PORT}")
-        line=$(replace_placeholder "${line}" '{{MINIO_CONSOLE_PORT}}' "${MINIO_CONSOLE_PORT}")
-        line=$(replace_placeholder "${line}" '{{MINIO_DATA_PATH}}' "${MINIO_DATA_PATH}")
-        line=$(replace_placeholder "${line}" '{{MINIO_BUCKET}}' "${MINIO_BUCKET:-}")
-        line=$(replace_placeholder "${line}" '{{MINIO_EXPOSE_PORTS}}' "${MINIO_EXPOSE_PORTS}")
-        line=$(replace_placeholder "${line}" '{{MINIO_NETWORK}}' "${MINIO_NETWORK:-minio-network}")
-        line=$(replace_placeholder "${line}" '{{MINIO_CREATE_BUCKET}}' "${MINIO_CREATE_BUCKET:-false}")
-        line=$(replace_placeholder "${line}" '{{MINIO_SERVER_URL}}' "${MINIO_SERVER_URL:-}")
-        line=$(replace_placeholder "${line}" '{{MINIO_BROWSER_REDIRECT_URL}}' "${MINIO_BROWSER_REDIRECT_URL:-}")
-
-        if [[ "${line}" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
-            printf '%s=%s\n' "${BASH_REMATCH[1]}" "$(quote_env_value "${BASH_REMATCH[2]}")" >> "${output}"
-        else
-            printf '%s\n' "${line}" >> "${output}"
-        fi
-    done < "${template}"
+    write_env_line "MINIO_CONTAINER_NAME" "${MINIO_CONTAINER_NAME}" >> "${output}"
+    write_env_line "MINIO_ROOT_USER" "${MINIO_ROOT_USER}" >> "${output}"
+    write_env_line "MINIO_ROOT_PASSWORD" "${MINIO_ROOT_PASSWORD}" >> "${output}"
+    write_env_line "MINIO_API_PORT" "${MINIO_API_PORT}" >> "${output}"
+    write_env_line "MINIO_CONSOLE_PORT" "${MINIO_CONSOLE_PORT}" >> "${output}"
+    write_env_line "MINIO_DATA_PATH" "${MINIO_DATA_PATH}" >> "${output}"
+    write_env_line "MINIO_BUCKET" "${MINIO_BUCKET:-}" >> "${output}"
+    write_env_line "MINIO_EXPOSE_PORTS" "${MINIO_EXPOSE_PORTS}" >> "${output}"
+    write_env_line "MINIO_NETWORK" "${MINIO_NETWORK:-minio-network}" >> "${output}"
+    write_env_line "MINIO_CREATE_BUCKET" "${MINIO_CREATE_BUCKET:-false}" >> "${output}"
+    write_env_line "MINIO_SERVER_URL" "${MINIO_SERVER_URL:-}" >> "${output}"
+    write_env_line "MINIO_BROWSER_REDIRECT_URL" "${MINIO_BROWSER_REDIRECT_URL:-}" >> "${output}"
 
     chmod 600 "${output}"
     log_success "Generated ${output}"
@@ -61,12 +63,16 @@ generate_compose_file() {
     local template="${PROJECT_ROOT}/docker-compose.yml.tpl"
     local output="${PROJECT_ROOT}/docker-compose.yml"
     local line
+    local user_yaml pass_yaml
 
     log_step "Generating docker-compose.yml..."
 
     if [[ ! -f "${template}" ]]; then
         die "Template not found: ${template}"
     fi
+
+    user_yaml=$(yaml_single_quote "${MINIO_ROOT_USER}")
+    pass_yaml=$(yaml_single_quote "${MINIO_ROOT_PASSWORD}")
 
     : > "${output}"
 
@@ -84,10 +90,10 @@ generate_compose_file() {
 
         if [[ "${line}" == *'{{PUBLIC_URL_ENV_SECTION}}'* ]]; then
             if [[ -n "${MINIO_SERVER_URL:-}" ]]; then
-                printf '      MINIO_SERVER_URL: ${MINIO_SERVER_URL}\n' >> "${output}"
+                printf '      MINIO_SERVER_URL: %s\n' "$(yaml_single_quote "${MINIO_SERVER_URL}")" >> "${output}"
             fi
             if [[ -n "${MINIO_BROWSER_REDIRECT_URL:-}" ]]; then
-                printf '      MINIO_BROWSER_REDIRECT_URL: ${MINIO_BROWSER_REDIRECT_URL}\n' >> "${output}"
+                printf '      MINIO_BROWSER_REDIRECT_URL: %s\n' "$(yaml_single_quote "${MINIO_BROWSER_REDIRECT_URL}")" >> "${output}"
             fi
             continue
         fi
@@ -95,9 +101,12 @@ generate_compose_file() {
         line=$(replace_placeholder "${line}" '{{MINIO_CONTAINER_NAME}}' "${MINIO_CONTAINER_NAME}")
         line=$(replace_placeholder "${line}" '{{MINIO_DATA_PATH}}' "${MINIO_DATA_PATH}")
         line=$(replace_placeholder "${line}" '{{MINIO_NETWORK}}' "${MINIO_NETWORK:-minio-network}")
+        line=$(replace_placeholder "${line}" '{{MINIO_ROOT_USER_YAML}}' "${user_yaml}")
+        line=$(replace_placeholder "${line}" '{{MINIO_ROOT_PASSWORD_YAML}}' "${pass_yaml}")
         printf '%s\n' "${line}" >> "${output}"
     done < "${template}"
 
+    chmod 600 "${output}"
     log_success "Generated ${output}"
 }
 
