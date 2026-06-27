@@ -43,6 +43,8 @@ generate_env_file() {
         line=$(replace_placeholder "${line}" '{{MINIO_EXPOSE_PORTS}}' "${MINIO_EXPOSE_PORTS}")
         line=$(replace_placeholder "${line}" '{{MINIO_NETWORK}}' "${MINIO_NETWORK:-minio-network}")
         line=$(replace_placeholder "${line}" '{{MINIO_CREATE_BUCKET}}' "${MINIO_CREATE_BUCKET:-false}")
+        line=$(replace_placeholder "${line}" '{{MINIO_SERVER_URL}}' "${MINIO_SERVER_URL:-}")
+        line=$(replace_placeholder "${line}" '{{MINIO_BROWSER_REDIRECT_URL}}' "${MINIO_BROWSER_REDIRECT_URL:-}")
         printf '%s\n' "${line}" >> "${output}"
     done < "${template}"
 
@@ -71,6 +73,16 @@ generate_compose_file() {
                     printf '      - "%s:9000"\n' "${MINIO_API_PORT}"
                     printf '      - "%s:9001"\n' "${MINIO_CONSOLE_PORT}"
                 } >> "${output}"
+            fi
+            continue
+        fi
+
+        if [[ "${line}" == *'{{PUBLIC_URL_ENV_SECTION}}'* ]]; then
+            if [[ -n "${MINIO_SERVER_URL:-}" ]]; then
+                printf '      MINIO_SERVER_URL: ${MINIO_SERVER_URL}\n' >> "${output}"
+            fi
+            if [[ -n "${MINIO_BROWSER_REDIRECT_URL:-}" ]]; then
+                printf '      MINIO_BROWSER_REDIRECT_URL: ${MINIO_BROWSER_REDIRECT_URL}\n' >> "${output}"
             fi
             continue
         fi

@@ -260,10 +260,15 @@ cmd_status() {
         echo -e "Health: ${health}"
 
         if [[ "${MINIO_EXPOSE_PORTS}" == "true" ]]; then
-            echo "API:    http://$(get_primary_ip):${MINIO_API_PORT}"
+            echo "API:     http://$(get_primary_ip):${MINIO_API_PORT}"
             echo "Console: http://$(get_primary_ip):${MINIO_CONSOLE_PORT}"
         else
             echo "API/Console: internal Docker network only"
+        fi
+
+        if [[ -n "${MINIO_SERVER_URL:-}" || -n "${MINIO_BROWSER_REDIRECT_URL:-}" ]]; then
+            echo "Public API URL:     ${MINIO_SERVER_URL:-not set}"
+            echo "Public Console URL: ${MINIO_BROWSER_REDIRECT_URL:-not set}"
         fi
     else
         echo "Container is not running."

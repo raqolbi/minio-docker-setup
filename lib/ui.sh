@@ -33,6 +33,11 @@ show_install_complete() {
         echo -e "  ${BOLD}Console Endpoint:${NC}  Internal only (Docker network)"
     fi
 
+    if [[ -n "${MINIO_SERVER_URL:-}" || -n "${MINIO_BROWSER_REDIRECT_URL:-}" ]]; then
+        echo -e "  ${BOLD}Public API URL:${NC}    ${MINIO_SERVER_URL:-not set}"
+        echo -e "  ${BOLD}Public Console URL:${NC} ${MINIO_BROWSER_REDIRECT_URL:-not set}"
+    fi
+
     echo -e "  ${BOLD}Username:${NC}          ${MINIO_ROOT_USER}"
     echo -e "  ${BOLD}Password:${NC}          ${MINIO_ROOT_PASSWORD}"
     echo -e "  ${BOLD}Bucket:${NC}            ${MINIO_BUCKET:-none}"
@@ -40,6 +45,85 @@ show_install_complete() {
     echo ""
     echo -e "${YELLOW}Store your credentials securely. The password is shown once.${NC}"
     echo ""
+}
+
+collect_public_url_config() {
+    local update_mode="${1:-false}"
+    local default_yes="N"
+    local input
+
+    MINIO_SERVER_URL="${MINIO_SERVER_URL:-}"
+    MINIO_BROWSER_REDIRECT_URL="${MINIO_BROWSER_REDIRECT_URL:-}"
+
+    echo "--------------------------------"
+    log_info "Public URLs for domain / reverse proxy (HTTPS)"
+    log_info "Maps to MinIO env: MINIO_SERVER_URL and MINIO_BROWSER_REDIRECT_URL"
+
+    if [[ "${update_mode}" == "true" ]]; then
+        echo ""
+        echo -e "  ${BOLD}Current API URL:${NC}     ${MINIO_SERVER_URL:-(not set)}"
+        echo -e "  ${BOLD}Current Console URL:${NC} ${MINIO_BROWSER_REDIRECT_URL:-(not set)}"
+        echo ""
+
+        if [[ -n "${MINIO_SERVER_URL}" || -n "${MINIO_BROWSER_REDIRECT_URL}" ]]; then
+            default_yes="Y"
+        fi
+    fi
+
+    if prompt_yes_no "Configure public API and Console URLs?" "${default_yes}"; then
+        while true; do
+            if [[ -n "${MINIO_SERVER_URL}" ]]; then
+                read -r -p "$(echo -e "Public API URL (MINIO_SERVER_URL) [${MINIO_SERVER_URL}]: ")" input
+                input="${input:-${MINIO_SERVER_URL}}"
+            else
+                read -r -p "$(echo -e "Public API URL (MINIO_SERVER_URL) [https://s3.example.com]: ")" input
+                input="${input:-}"
+            fi
+            MINIO_SERVER_URL="${input%/}"
+
+            if [[ -z "${MINIO_SERVER_URL}" ]]; then
+                log_error "Public API URL is required when configuring public URLs."
+                continue
+            fi
+
+            if validate_public_url "${MINIO_SERVER_URL}" "Public API URL"; then
+                break
+            fi
+        done
+
+        while true; do
+            if [[ -n "${MINIO_BROWSER_REDIRECT_URL}" ]]; then
+                read -r -p "$(echo -e "Public Console URL (MINIO_BROWSER_REDIRECT_URL) [${MINIO_BROWSER_REDIRECT_URL}]: ")" input
+                input="${input:-${MINIO_BROWSER_REDIRECT_URL}}"
+            else
+                read -r -p "$(echo -e "Public Console URL (MINIO_BROWSER_REDIRECT_URL) [https://console.example.com]: ")" input
+                input="${input:-}"
+            fi
+            MINIO_BROWSER_REDIRECT_URL="${input%/}"
+
+            if [[ -z "${MINIO_BROWSER_REDIRECT_URL}" ]]; then
+                log_error "Public Console URL is required when configuring public URLs."
+                continue
+            fi
+
+            if validate_public_url "${MINIO_BROWSER_REDIRECT_URL}" "Public Console URL"; then
+                break
+            fi
+        done
+
+        validate_public_urls_pair "true" || die "Invalid public URL configuration."
+    elif [[ "${update_mode}" == "true" && ( -n "${MINIO_SERVER_URL}" || -n "${MINIO_BROWSER_REDIRECT_URL}" ) ]]; then
+        if prompt_yes_no "Clear existing public URLs?" "N"; then
+            MINIO_SERVER_URL=""
+            MINIO_BROWSER_REDIRECT_URL=""
+            log_success "Public URLs will be removed from configuration."
+        fi
+    else
+        MINIO_SERVER_URL=""
+        MINIO_BROWSER_REDIRECT_URL=""
+    fi
+
+    export MINIO_SERVER_URL MINIO_BROWSER_REDIRECT_URL
 }
 
 collect_install_config() {
@@ -130,10 +214,21 @@ collect_install_config() {
         MINIO_BUCKET=$(prompt_default "Bucket Name" "storage")
     fi
 
+    collect_public_url_config "false"
+
     echo ""
     export MINIO_CONTAINER_NAME MINIO_DATA_PATH MINIO_EXPOSE_PORTS
     export MINIO_API_PORT MINIO_CONSOLE_PORT MINIO_ROOT_USER MINIO_ROOT_PASSWORD
     export MINIO_CREATE_BUCKET MINIO_BUCKET
+    export MINIO_SERVER_URL MINIO_BROWSER_REDIRECT_URL
+}
+
+show_update_urls_banner() {
+    echo ""
+    echo -e "${BOLD}=========================================${NC}"
+    echo -e "${BOLD}     Update MinIO Public URLs            ${NC}"
+    echo -e "${BOLD}=========================================${NC}"
+    echo ""
 }
 
 show_usage() {
@@ -151,6 +246,7 @@ Commands:
   logs        Tail MinIO container logs
   status      Show container and health status
   update      Pull latest MinIO image and recreate containers
+  update-urls Update public API and Console URLs (MINIO_SERVER_URL)
   backup      Create compressed backup of config and data
   restore     Restore from a backup archive
 
@@ -158,6 +254,7 @@ Examples:
   ./setup.sh
   ./setup.sh install
   ./setup.sh status
+  ./setup.sh update-urls
   ./setup.sh backup
   ./setup.sh restore /path/to/backup.tar.gz
 EOF

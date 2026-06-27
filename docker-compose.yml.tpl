@@ -7,6 +7,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+{{PUBLIC_URL_ENV_SECTION}}
     volumes:
       - {{MINIO_DATA_PATH}}:/data
 {{PORTS_SECTION}}

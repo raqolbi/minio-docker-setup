@@ -140,6 +140,29 @@ run_installation() {
     show_install_complete "${server_ip}" "${api_endpoint}" "${console_endpoint}"
 }
 
+run_update_public_urls() {
+    load_env_file
+
+    show_update_urls_banner
+    collect_public_url_config "true"
+
+    log_progress "Regenerating configuration files..."
+    generate_config_files
+
+    log_progress "Applying configuration (recreating container)..."
+    compose_cmd up -d
+
+    if ! wait_for_healthy "${MINIO_CONTAINER_NAME}"; then
+        die "MinIO failed to restart after URL update. Check logs with: ./setup.sh logs"
+    fi
+
+    echo ""
+    log_success "Public URLs updated successfully."
+    echo -e "  ${BOLD}MINIO_SERVER_URL:${NC}           ${MINIO_SERVER_URL:-(not set)}"
+    echo -e "  ${BOLD}MINIO_BROWSER_REDIRECT_URL:${NC} ${MINIO_BROWSER_REDIRECT_URL:-(not set)}"
+    echo ""
+}
+
 run_backup() {
     local backup_dir backup_name archive_path temp_dir
 

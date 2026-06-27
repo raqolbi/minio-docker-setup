@@ -85,6 +85,7 @@ Generated at install time (do not edit manually):
 | 8 | Update | Pull latest MinIO image and recreate |
 | 9 | Backup | Create compressed backup |
 | 10 | Restore | Restore from backup archive |
+| 11 | Update Public URLs | Set or update MINIO_SERVER_URL / MINIO_BROWSER_REDIRECT_URL |
 | 0 | Exit | Close the menu |
 
 ## CLI Commands
@@ -100,6 +101,7 @@ Generated at install time (do not edit manually):
 | `./setup.sh logs` | Follow container logs |
 | `./setup.sh status` | Show container and endpoint status |
 | `./setup.sh update` | Pull latest MinIO image and recreate |
+| `./setup.sh update-urls` | Update public API and Console URLs |
 | `./setup.sh backup` | Create compressed backup |
 | `./setup.sh restore [file]` | Restore from backup archive |
 
@@ -113,6 +115,7 @@ The installer asks for:
 4. **Root username** (default: `minioadmin`)
 5. **Password** — auto-generated (24+ chars) or manual
 6. **Default bucket** — optional (default name: `storage`)
+7. **Public URLs** — optional; for domain + reverse proxy (HTTPS)
 
 It then:
 
@@ -131,6 +134,27 @@ If you choose **not** to expose ports, MinIO is reachable only on the Docker net
 http://<container-name>:9000   # API
 http://<container-name>:9001   # Console
 ```
+
+## Public URLs (Domain / Reverse Proxy)
+
+When MinIO is accessed via a public domain behind Nginx, Traefik, or another reverse proxy with TLS, configure these MinIO environment variables:
+
+| Variable | Purpose | Example |
+|----------|---------|---------|
+| `MINIO_SERVER_URL` | Public S3 API URL (presigned URLs, hostname) | `https://s3.example.com` |
+| `MINIO_BROWSER_REDIRECT_URL` | Public Console URL (login redirect) | `https://console.example.com` |
+
+During **install**, you can set them in the optional step at the end.
+
+For an **existing installation** (including setups created before this feature), update anytime:
+
+```bash
+./setup.sh update-urls
+```
+
+Or select **11) Update Public URLs** from the menu.
+
+The command regenerates `.env` and `docker-compose.yml`, then recreates the container to apply changes. You can also clear previously set URLs from the same prompt.
 
 ## Update
 

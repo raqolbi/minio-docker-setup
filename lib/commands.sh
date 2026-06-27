@@ -30,6 +30,9 @@ dispatch_command() {
         update)
             cmd_update
             ;;
+        update-urls)
+            run_update_public_urls
+            ;;
         backup)
             run_backup
             ;;
@@ -60,6 +63,7 @@ run_command_from_menu() {
         logs)          cmd_logs ;;
         status)        cmd_status ;;
         update)        cmd_update ;;
+        update-urls)   run_update_public_urls ;;
         backup)        run_backup ;;
         restore)       run_restore "${restore_path}" ;;
         *)

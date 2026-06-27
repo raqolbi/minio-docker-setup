@@ -235,6 +235,47 @@ validate_exposed_ports() {
     log_success "Ports ${MINIO_API_PORT} and ${MINIO_CONSOLE_PORT} are available."
 }
 
+validate_public_url() {
+    local url="$1"
+    local label="$2"
+
+    if [[ -z "${url}" ]]; then
+        return 0
+    fi
+
+    if [[ ! "${url}" =~ ^https?://[^[:space:]/]+ ]]; then
+        log_error "${label} must start with http:// or https:// (example: https://s3.example.com)"
+        return 1
+    fi
+
+    return 0
+}
+
+validate_public_urls_pair() {
+    local require_both="${1:-false}"
+
+    if [[ -z "${MINIO_SERVER_URL}" && -z "${MINIO_BROWSER_REDIRECT_URL}" ]]; then
+        return 0
+    fi
+
+    if ! validate_public_url "${MINIO_SERVER_URL}" "Public API URL (MINIO_SERVER_URL)"; then
+        return 1
+    fi
+
+    if ! validate_public_url "${MINIO_BROWSER_REDIRECT_URL}" "Public Console URL (MINIO_BROWSER_REDIRECT_URL)"; then
+        return 1
+    fi
+
+    if [[ "${require_both}" == "true" ]]; then
+        if [[ -z "${MINIO_SERVER_URL}" || -z "${MINIO_BROWSER_REDIRECT_URL}" ]]; then
+            log_error "Both public API URL and Console URL are required when enabling public URL configuration."
+            return 1
+        fi
+    fi
+
+    return 0
+}
+
 validate_container_name() {
     local name="$1"
 

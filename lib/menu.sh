@@ -20,6 +20,7 @@ show_menu_options() {
     echo -e "  ${BOLD}8)${NC}  Update"
     echo -e "  ${BOLD}9)${NC}  Backup"
     echo -e "  ${BOLD}10)${NC} Restore"
+    echo -e "  ${BOLD}11)${NC} Update Public URLs"
     echo -e "  ${BOLD}0)${NC}  Exit"
     echo ""
 }
@@ -84,6 +85,10 @@ run_interactive_menu() {
             10)
                 read -r -p "Backup archive path (leave empty for prompt): " restore_path
                 run_command_from_menu restore "${restore_path}" || true
+                pause_menu
+                ;;
+            11)
+                run_command_from_menu update-urls || true
                 pause_menu
                 ;;
             0)
