@@ -260,8 +260,9 @@ collect_reset_credentials() {
 
     echo -e "  ${BOLD}Current username:${NC} ${MINIO_ROOT_USER}"
     echo ""
-    log_warn "This resets MinIO root login by clearing the IAM store on disk."
-    log_warn "Buckets and object data are kept; IAM users and policies may need reconfiguration."
+    log_warn "This resets MinIO root login by clearing the entire IAM store on disk."
+    log_warn "IAM users, groups, service accounts, and policies will be removed automatically."
+    log_warn "Buckets and object data are kept."
     echo ""
 
     if ! confirm "Proceed with root credential reset?" "N"; then
