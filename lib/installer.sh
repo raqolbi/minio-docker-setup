@@ -87,6 +87,18 @@ run_installation() {
     log_progress "Generating configuration files..."
     generate_config_files
 
+    if minio_iam_store_exists; then
+        echo ""
+        log_warn "Existing MinIO data found at ${MINIO_DATA_PATH}"
+        log_warn "Stored IAM credentials override .env — new password will NOT work until IAM is reset."
+        if ! confirm "Reset IAM config and apply new credentials?" "Y"; then
+            die "Install cancelled. Use an empty data path, or run ./setup.sh reset-password on an existing install."
+        fi
+        log_progress "Stopping any existing container..."
+        compose_cmd down --remove-orphans 2>/dev/null || true
+        reset_minio_iam_store
+    fi
+
     ensure_docker_network "${MINIO_NETWORK:-minio-network}"
 
     log_progress "Starting MinIO container..."
@@ -208,6 +220,12 @@ run_backup() {
     cp "${PROJECT_ROOT}/docker-compose.yml" "${temp_dir}/config/"
     cp "${PROJECT_ROOT}/.env" "${temp_dir}/config/"
 
+    if [[ -f "${PROJECT_ROOT}/secrets/root_password" ]]; then
+        mkdir -p "${temp_dir}/secrets"
+        cp "${PROJECT_ROOT}/secrets/root_password" "${temp_dir}/secrets/"
+        chmod 600 "${temp_dir}/secrets/root_password"
+    fi
+
     log_step "Archiving MinIO data from ${MINIO_DATA_PATH}..."
     if [[ -d "${MINIO_DATA_PATH}" ]]; then
         if [[ "${EUID}" -eq 0 ]]; then
@@ -261,14 +279,19 @@ run_restore() {
     log_step "Stopping MinIO..."
     compose_cmd stop 2>/dev/null || true
 
-    if [[ -f "${extracted}/config/docker-compose.yml" ]]; then
-        cp "${extracted}/config/docker-compose.yml" "${PROJECT_ROOT}/docker-compose.yml"
-    fi
-
     if [[ -f "${extracted}/config/.env" ]]; then
         cp "${extracted}/config/.env" "${PROJECT_ROOT}/.env"
         chmod 600 "${PROJECT_ROOT}/.env"
         load_env_file
+        generate_compose_file
+    elif [[ -f "${extracted}/config/docker-compose.yml" ]]; then
+        cp "${extracted}/config/docker-compose.yml" "${PROJECT_ROOT}/docker-compose.yml"
+        if [[ -f "${extracted}/secrets/root_password" ]]; then
+            mkdir -p "${PROJECT_ROOT}/secrets"
+            cp "${extracted}/secrets/root_password" "${PROJECT_ROOT}/secrets/root_password"
+            chmod 600 "${PROJECT_ROOT}/secrets/root_password"
+            chmod 700 "${PROJECT_ROOT}/secrets"
+        fi
     fi
 
     if [[ -f "${extracted}/data.tar" ]]; then
@@ -318,6 +341,7 @@ run_uninstall() {
 
     log_step "Removing generated configuration..."
     rm -f "${PROJECT_ROOT}/docker-compose.yml" "${PROJECT_ROOT}/.env"
+    rm -rf "${PROJECT_ROOT}/secrets"
 
     if [[ "${remove_data}" == "true" && -n "${MINIO_DATA_PATH:-}" && -d "${MINIO_DATA_PATH}" ]]; then
         log_warn "Removing data directory: ${MINIO_DATA_PATH}"

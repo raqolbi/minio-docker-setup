@@ -82,12 +82,13 @@ Generated at install time (do not edit manually):
 | 4 | Stop | Stop MinIO |
 | 5 | Restart | Restart MinIO |
 | 6 | Status | Show container and endpoint status |
-| 7 | Logs | Follow container logs |
+| 7 | Logs | Show recent container logs |
 | 8 | Update | Pull latest MinIO image and recreate |
 | 9 | Backup | Create compressed backup |
 | 10 | Restore | Restore from backup archive |
 | 11 | Update Public URLs | Set or update MINIO_SERVER_URL / MINIO_BROWSER_REDIRECT_URL |
 | 12 | Reset Root Password | Reset root username/password (keeps bucket data) |
+| 13 | Diagnose | Troubleshoot login and credential issues |
 | 0 | Exit | Close the menu |
 
 ## CLI Commands
@@ -100,7 +101,8 @@ Generated at install time (do not edit manually):
 | `./setup.sh start` | Start MinIO |
 | `./setup.sh stop` | Stop MinIO |
 | `./setup.sh restart` | Restart MinIO |
-| `./setup.sh logs` | Follow container logs |
+| `./setup.sh logs` | Show recent container logs (`-f` to follow) |
+| `./setup.sh diagnose` | Troubleshoot login and credential issues |
 | `./setup.sh status` | Show container and endpoint status |
 | `./setup.sh update` | Pull latest MinIO image and recreate |
 | `./setup.sh update-urls` | Update public API and Console URLs |
@@ -180,7 +182,7 @@ This will:
 
 **Buckets and object data are preserved.** IAM users, groups, and policies are cleared automatically and must be recreated if needed.
 
-Credentials are written into `docker-compose.yml` as YAML single-quoted literals with `$` doubled to `$$` (Docker Compose interpolation escaping), so passwords containing `$`, `%`, `&`, or quotes are applied to MinIO exactly as entered. This is verified end-to-end during install.
+Credentials are written to `secrets/root_password` and mounted via `MINIO_ROOT_PASSWORD_FILE` (MinIO's recommended method), so passwords reach the container exactly as stored in `.env`.
 
 ## Update
 
@@ -297,6 +299,25 @@ sudo ufw allow 9001/tcp
 ./setup.sh status
 ```
 
+Credentials are written to `secrets/root_password` and mounted via `MINIO_ROOT_PASSWORD_FILE` (MinIO's recommended method), so the exact password reaches the container without Docker Compose interpolation issues.
+
+### Console login fails (invalid login)
+
+Run diagnostics first:
+
+```bash
+./setup.sh diagnose
+```
+
+This checks container status, tests API login with your `.env` credentials, shows the correct Console URL, and prints recent logs.
+
+Common causes:
+
+1. **Wrong Console URL** — If `MINIO_BROWSER_REDIRECT_URL` is set, log in via that public URL, **not** `http://<ip>:9001`.
+2. **Stale IAM credentials** — Reinstalling over existing data without IAM reset leaves old passwords active. Run `./setup.sh reset-password`.
+3. **Container not running** — `./setup.sh logs` showed nothing because the container was stopped. Run `./setup.sh start` then `./setup.sh diagnose`.
+4. **Outdated config** — Pull latest code, then `./setup.sh reset-password` to migrate to `MINIO_ROOT_PASSWORD_FILE`.
+
 ### Console login fails after setting public URLs
 
 This is usually **not** a password change. MinIO stores root credentials on first install in the data volume; `update-urls` does not reset them.
@@ -305,7 +326,7 @@ Common causes:
 
 1. **Wrong URL** — Use the public Console URL (`MINIO_BROWSER_REDIRECT_URL`), not `http://<ip>:9001`, after redirect is configured.
 2. **Reverse proxy** — Ensure your proxy forwards WebSocket and cookies to MinIO Console correctly.
-3. **Outdated installer** — Early versions escaped `$` in passwords for Bash, which broke Docker Compose env loading. Pull the latest code and reinstall or run `./setup.sh reset-password`.
+3. **Outdated installer** — Pull the latest code and run `./setup.sh reset-password`.
 
 To clear public URLs and restore direct IP access:
 

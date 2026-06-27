@@ -24,6 +24,8 @@ load_libraries() {
     source "${PROJECT_ROOT}/lib/uninstall.sh"
     # shellcheck source=lib/commands.sh
     source "${PROJECT_ROOT}/lib/commands.sh"
+    # shellcheck source=lib/diagnostics.sh
+    source "${PROJECT_ROOT}/lib/diagnostics.sh"
     # shellcheck source=lib/menu.sh
     source "${PROJECT_ROOT}/lib/menu.sh"
 }

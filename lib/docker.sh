@@ -244,8 +244,24 @@ cmd_restart() {
 }
 
 cmd_logs() {
+    local follow=false
+
+    if [[ "${1:-}" == "-f" || "${1:-}" == "--follow" ]]; then
+        follow=true
+    fi
+
     load_env_file
-    compose_cmd logs -f --tail=100
+
+    if ! docker ps --format '{{.Names}}' | grep -qx "${MINIO_CONTAINER_NAME}"; then
+        log_warn "Container '${MINIO_CONTAINER_NAME}' is not running."
+        log_info "Showing last available logs (if any)..."
+    fi
+
+    if [[ "${follow}" == "true" ]]; then
+        compose_cmd logs -f --tail=100
+    else
+        compose_cmd logs --tail=100
+    fi
 }
 
 cmd_status() {

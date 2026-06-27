@@ -6,10 +6,11 @@ services:
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: {{MINIO_ROOT_USER_YAML}}
-      MINIO_ROOT_PASSWORD: {{MINIO_ROOT_PASSWORD_YAML}}
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/root_password
 {{PUBLIC_URL_ENV_SECTION}}
     volumes:
       - {{MINIO_DATA_PATH}}:/data
+      - {{MINIO_ROOT_PASSWORD_SECRET_PATH}}:/run/secrets/root_password:ro
 {{PORTS_SECTION}}
     networks:
       - {{MINIO_NETWORK}}

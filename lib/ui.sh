@@ -46,6 +46,7 @@ show_install_complete() {
     echo -e "  ${BOLD}Data Directory:${NC}    ${MINIO_DATA_PATH}"
     echo ""
     echo -e "${YELLOW}Store your credentials securely. The password is shown once.${NC}"
+    echo -e "${YELLOW}If login fails, run: ./setup.sh diagnose${NC}"
     echo ""
 }
 
@@ -341,7 +342,8 @@ Commands:
   start       Start MinIO containers
   stop        Stop MinIO containers
   restart     Restart MinIO containers
-  logs        Tail MinIO container logs
+  logs        Show recent container logs (add -f to follow)
+  diagnose    Troubleshoot login and credential issues
   status      Show container and health status
   update      Pull latest MinIO image and recreate containers
   update-urls   Update public API and Console URLs (MINIO_SERVER_URL)
@@ -354,6 +356,7 @@ Examples:
   ./setup.sh install
   ./setup.sh status
   ./setup.sh update-urls
+  ./setup.sh diagnose
   ./setup.sh reset-password
   ./setup.sh backup
   ./setup.sh restore /path/to/backup.tar.gz

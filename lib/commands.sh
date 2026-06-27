@@ -22,7 +22,10 @@ dispatch_command() {
             cmd_restart
             ;;
         logs)
-            cmd_logs
+            cmd_logs "${2:-}"
+            ;;
+        diagnose)
+            cmd_diagnose
             ;;
         status)
             cmd_status
@@ -63,7 +66,8 @@ run_command_from_menu() {
         start)         cmd_start ;;
         stop)          cmd_stop ;;
         restart)       cmd_restart ;;
-        logs)          cmd_logs ;;
+        logs)          cmd_logs "${2:-}" ;;
+        diagnose)      cmd_diagnose ;;
         status)        cmd_status ;;
         update)        cmd_update ;;
         update-urls)   run_update_public_urls ;;

@@ -30,6 +30,16 @@ write_env_line() {
     printf '%s=%s\n' "${key}" "$(quote_env_value "${value}")"
 }
 
+write_root_password_secret() {
+    local secrets_dir="${PROJECT_ROOT}/secrets"
+    local secret_file="${secrets_dir}/root_password"
+
+    mkdir -p "${secrets_dir}"
+    printf '%s' "${MINIO_ROOT_PASSWORD}" > "${secret_file}"
+    chmod 600 "${secret_file}"
+    chmod 700 "${secrets_dir}"
+}
+
 generate_env_file() {
     local template="${PROJECT_ROOT}/.env.tpl"
     local output="${PROJECT_ROOT}/.env"
@@ -63,7 +73,7 @@ generate_compose_file() {
     local template="${PROJECT_ROOT}/docker-compose.yml.tpl"
     local output="${PROJECT_ROOT}/docker-compose.yml"
     local line
-    local user_yaml pass_yaml
+    local user_yaml secret_host_path
 
     log_step "Generating docker-compose.yml..."
 
@@ -71,8 +81,9 @@ generate_compose_file() {
         die "Template not found: ${template}"
     fi
 
+    write_root_password_secret
     user_yaml=$(yaml_single_quote "${MINIO_ROOT_USER}")
-    pass_yaml=$(yaml_single_quote "${MINIO_ROOT_PASSWORD}")
+    secret_host_path="${PROJECT_ROOT}/secrets/root_password"
 
     : > "${output}"
 
@@ -102,7 +113,7 @@ generate_compose_file() {
         line=$(replace_placeholder "${line}" '{{MINIO_DATA_PATH}}' "${MINIO_DATA_PATH}")
         line=$(replace_placeholder "${line}" '{{MINIO_NETWORK}}' "${MINIO_NETWORK:-minio-network}")
         line=$(replace_placeholder "${line}" '{{MINIO_ROOT_USER_YAML}}' "${user_yaml}")
-        line=$(replace_placeholder "${line}" '{{MINIO_ROOT_PASSWORD_YAML}}' "${pass_yaml}")
+        line=$(replace_placeholder "${line}" '{{MINIO_ROOT_PASSWORD_SECRET_PATH}}' "${secret_host_path}")
         printf '%s\n' "${line}" >> "${output}"
     done < "${template}"
 

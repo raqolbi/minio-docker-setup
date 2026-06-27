@@ -22,6 +22,7 @@ show_menu_options() {
     echo -e "  ${BOLD}10)${NC} Restore"
     echo -e "  ${BOLD}11)${NC} Update Public URLs"
     echo -e "  ${BOLD}12)${NC} Reset Root Password"
+    echo -e "  ${BOLD}13)${NC} Diagnose Login Issues"
     echo -e "  ${BOLD}0)${NC}  Exit"
     echo ""
 }
@@ -71,9 +72,9 @@ run_interactive_menu() {
                 pause_menu
                 ;;
             7)
-                log_info "Showing logs (Ctrl+C to return)..."
+                log_info "Showing recent logs (use: ./setup.sh logs -f to follow)..."
                 run_command_from_menu logs || true
-                echo ""
+                pause_menu
                 ;;
             8)
                 run_command_from_menu update || true
@@ -94,6 +95,10 @@ run_interactive_menu() {
                 ;;
             12)
                 run_command_from_menu reset-password || true
+                pause_menu
+                ;;
+            13)
+                run_command_from_menu diagnose || true
                 pause_menu
                 ;;
             0)

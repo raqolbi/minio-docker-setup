@@ -53,6 +53,10 @@ ensure_mc_client() {
     chmod +x "${MC_BIN}"
 }
 
+minio_iam_store_exists() {
+    [[ -d "${MINIO_DATA_PATH}/.minio.sys/config" ]]
+}
+
 reset_minio_iam_store() {
     local config_dir="${MINIO_DATA_PATH}/.minio.sys/config"
     local backup_dir="${MINIO_DATA_PATH}/.minio.sys/config.bak-$(timestamp)"
@@ -83,7 +87,7 @@ patch_credentials_env() {
 
     log_success "Root credentials updated in .env"
 
-    log_step "Updating credentials in docker-compose.yml..."
+    log_step "Updating credentials in docker-compose.yml and secrets file..."
     generate_compose_file
 }
 
