@@ -227,6 +227,94 @@ collect_install_config() {
     export MINIO_SERVER_URL MINIO_BROWSER_REDIRECT_URL
 }
 
+show_reset_credentials_banner() {
+    echo ""
+    echo -e "${YELLOW}${BOLD}=========================================${NC}"
+    echo -e "${YELLOW}${BOLD}     Reset MinIO Root Credentials        ${NC}"
+    echo -e "${YELLOW}${BOLD}=========================================${NC}"
+    echo ""
+}
+
+show_reset_credentials_complete() {
+    echo ""
+    echo -e "${GREEN}${BOLD}=========================================${NC}"
+    echo -e "${GREEN}${BOLD}     Credentials Reset Complete          ${NC}"
+    echo -e "${GREEN}${BOLD}=========================================${NC}"
+    echo ""
+    echo -e "  ${BOLD}Username:${NC}  ${MINIO_ROOT_USER}"
+    echo -e "  ${BOLD}Password:${NC}  ${MINIO_ROOT_PASSWORD}"
+    echo ""
+    echo -e "${YELLOW}Store these credentials securely. The password is shown once.${NC}"
+    echo ""
+
+    if [[ -n "${MINIO_BROWSER_REDIRECT_URL:-}" ]]; then
+        log_info "Console URL: ${MINIO_BROWSER_REDIRECT_URL}"
+    elif [[ "${MINIO_EXPOSE_PORTS:-false}" == "true" ]]; then
+        log_info "Console URL: http://$(get_primary_ip):${MINIO_CONSOLE_PORT}"
+    fi
+    echo ""
+}
+
+collect_reset_credentials() {
+    local choice
+
+    echo -e "  ${BOLD}Current username:${NC} ${MINIO_ROOT_USER}"
+    echo ""
+    log_warn "This resets MinIO root login by clearing the IAM store on disk."
+    log_warn "Buckets and object data are kept; IAM users and policies may need reconfiguration."
+    echo ""
+
+    if ! confirm "Proceed with root credential reset?" "N"; then
+        die "Credential reset cancelled."
+    fi
+
+    echo "--------------------------------"
+
+    while true; do
+        MINIO_ROOT_USER=$(prompt_default "New Root Username" "${MINIO_ROOT_USER}")
+        if validate_root_username "${MINIO_ROOT_USER}"; then
+            break
+        fi
+    done
+
+    echo "--------------------------------"
+
+    echo "Password options:"
+    echo "  1) Generate Random"
+    echo "  2) Manual Input"
+    read -r -p "Select option [1]: " choice
+    choice="${choice:-1}"
+
+    case "${choice}" in
+        1)
+            MINIO_ROOT_PASSWORD=$(generate_password 24)
+            log_success "Generated secure password (24+ characters)."
+            ;;
+        2)
+            while true; do
+                read -r -s -p "Enter password (min 24 chars, mixed case, numbers, symbols): " MINIO_ROOT_PASSWORD
+                echo ""
+                read -r -s -p "Confirm password: " choice
+                echo ""
+
+                if [[ "${MINIO_ROOT_PASSWORD}" != "${choice}" ]]; then
+                    log_error "Passwords do not match."
+                    continue
+                fi
+
+                if validate_password "${MINIO_ROOT_PASSWORD}"; then
+                    break
+                fi
+            done
+            ;;
+        *)
+            die "Invalid password option."
+            ;;
+    esac
+
+    export MINIO_ROOT_USER MINIO_ROOT_PASSWORD
+}
+
 show_update_urls_banner() {
     echo ""
     echo -e "${BOLD}=========================================${NC}"
@@ -250,7 +338,8 @@ Commands:
   logs        Tail MinIO container logs
   status      Show container and health status
   update      Pull latest MinIO image and recreate containers
-  update-urls Update public API and Console URLs (MINIO_SERVER_URL)
+  update-urls   Update public API and Console URLs (MINIO_SERVER_URL)
+  reset-password Reset root username and password (keeps bucket data)
   backup      Create compressed backup of config and data
   restore     Restore from a backup archive
 
@@ -259,6 +348,7 @@ Examples:
   ./setup.sh install
   ./setup.sh status
   ./setup.sh update-urls
+  ./setup.sh reset-password
   ./setup.sh backup
   ./setup.sh restore /path/to/backup.tar.gz
 EOF

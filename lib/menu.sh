@@ -21,6 +21,7 @@ show_menu_options() {
     echo -e "  ${BOLD}9)${NC}  Backup"
     echo -e "  ${BOLD}10)${NC} Restore"
     echo -e "  ${BOLD}11)${NC} Update Public URLs"
+    echo -e "  ${BOLD}12)${NC} Reset Root Password"
     echo -e "  ${BOLD}0)${NC}  Exit"
     echo ""
 }
@@ -89,6 +90,10 @@ run_interactive_menu() {
                 ;;
             11)
                 run_command_from_menu update-urls || true
+                pause_menu
+                ;;
+            12)
+                run_command_from_menu reset-password || true
                 pause_menu
                 ;;
             0)

@@ -33,6 +33,9 @@ dispatch_command() {
         update-urls)
             run_update_public_urls
             ;;
+        reset-password)
+            run_reset_credentials
+            ;;
         backup)
             run_backup
             ;;
@@ -64,6 +67,7 @@ run_command_from_menu() {
         status)        cmd_status ;;
         update)        cmd_update ;;
         update-urls)   run_update_public_urls ;;
+        reset-password) run_reset_credentials ;;
         backup)        run_backup ;;
         restore)       run_restore "${restore_path}" ;;
         *)

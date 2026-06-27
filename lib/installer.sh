@@ -171,6 +171,33 @@ run_update_public_urls() {
     echo ""
 }
 
+run_reset_credentials() {
+    load_env_file
+
+    show_reset_credentials_banner
+    collect_reset_credentials
+
+    log_progress "Stopping MinIO..."
+    compose_cmd stop
+
+    reset_minio_iam_store
+    patch_credentials_env
+    load_env_file
+
+    log_progress "Starting MinIO with new credentials..."
+    compose_cmd up -d
+
+    if ! wait_for_healthy "${MINIO_CONTAINER_NAME}"; then
+        die "MinIO failed to start after credential reset. Check logs with: ./setup.sh logs"
+    fi
+
+    if ! run_health_checks; then
+        log_warn "Some health checks failed. Review logs with: ./setup.sh logs"
+    fi
+
+    show_reset_credentials_complete
+}
+
 run_backup() {
     local backup_dir backup_name archive_path temp_dir
 

@@ -276,6 +276,22 @@ validate_public_urls_pair() {
     return 0
 }
 
+validate_root_username() {
+    local user="$1"
+
+    if [[ ${#user} -lt 3 ]]; then
+        log_error "Root username must be at least 3 characters."
+        return 1
+    fi
+
+    if [[ ! "${user}" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]*$ ]]; then
+        log_error "Invalid root username. Use alphanumeric characters, dots, hyphens, or underscores."
+        return 1
+    fi
+
+    return 0
+}
+
 validate_container_name() {
     local name="$1"
 

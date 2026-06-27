@@ -61,6 +61,7 @@ Pass a command directly without opening the menu:
     ├── validation.sh       # System and input validation
     ├── docker.sh           # Docker install and container ops
     ├── generator.sh        # Template rendering
+    ├── credentials.sh      # Root credential reset (IAM store)
     ├── installer.sh        # Install flow, backup, restore, bucket
     ├── network.sh          # Docker network management
     └── utils.sh            # Shared utilities
@@ -86,6 +87,7 @@ Generated at install time (do not edit manually):
 | 9 | Backup | Create compressed backup |
 | 10 | Restore | Restore from backup archive |
 | 11 | Update Public URLs | Set or update MINIO_SERVER_URL / MINIO_BROWSER_REDIRECT_URL |
+| 12 | Reset Root Password | Reset root username/password (keeps bucket data) |
 | 0 | Exit | Close the menu |
 
 ## CLI Commands
@@ -102,6 +104,7 @@ Generated at install time (do not edit manually):
 | `./setup.sh status` | Show container and endpoint status |
 | `./setup.sh update` | Pull latest MinIO image and recreate |
 | `./setup.sh update-urls` | Update public API and Console URLs |
+| `./setup.sh reset-password` | Reset root username and password |
 | `./setup.sh backup` | Create compressed backup |
 | `./setup.sh restore [file]` | Restore from backup archive |
 
@@ -157,6 +160,25 @@ Or select **11) Update Public URLs** from the menu.
 The command updates only the public URL entries in `.env` and refreshes `docker-compose.yml` — **root password and other settings are not modified**. The container is then recreated to apply changes. You can also clear previously set URLs from the same prompt.
 
 **Important:** After setting `MINIO_BROWSER_REDIRECT_URL`, open the Console using that public URL (via your reverse proxy). Logging in at `http://<server-ip>:9001` often fails because MinIO redirects the session to the configured public URL.
+
+## Reset Root Password
+
+If you cannot log in (lost password or `.env` out of sync with MinIO), reset root credentials:
+
+```bash
+./setup.sh reset-password
+```
+
+Or select **12) Reset Root Password** from the menu.
+
+This will:
+
+1. Stop MinIO
+2. Clear the IAM credential store on disk (`.minio.sys/config/iam`)
+3. Set a new root username and password in `.env`
+4. Start MinIO and apply the new credentials
+
+**Buckets and object data are preserved.** Custom IAM users and policies may need to be recreated.
 
 ## Update
 
@@ -288,6 +310,12 @@ To clear public URLs and restore direct IP access:
 ```bash
 ./setup.sh update-urls
 # Choose to clear existing public URLs when prompted
+```
+
+If login still fails on both IP and public URL, reset credentials:
+
+```bash
+./setup.sh reset-password
 ```
 
 ### Bucket creation failed

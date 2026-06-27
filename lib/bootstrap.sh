@@ -12,6 +12,8 @@ load_libraries() {
     source "${PROJECT_ROOT}/lib/docker.sh"
     # shellcheck source=lib/generator.sh
     source "${PROJECT_ROOT}/lib/generator.sh"
+    # shellcheck source=lib/credentials.sh
+    source "${PROJECT_ROOT}/lib/credentials.sh"
     # shellcheck source=lib/network.sh
     source "${PROJECT_ROOT}/lib/network.sh"
     # shellcheck source=lib/installer.sh
