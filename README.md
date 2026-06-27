@@ -318,6 +318,8 @@ If login still fails on both IP and public URL, reset credentials:
 ./setup.sh reset-password
 ```
 
+The reset recreates the Docker container so new credentials from `.env` are applied. If `MINIO_BROWSER_REDIRECT_URL` is set, log in via that public URL — not `http://<ip>:9001`.
+
 ### Bucket creation failed
 
 Ensure MinIO is healthy, then create manually:

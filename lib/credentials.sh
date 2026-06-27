@@ -42,3 +42,43 @@ patch_credentials_env() {
 
     log_success "Root credentials updated in .env"
 }
+
+verify_root_credentials() {
+    local attempt=0
+    local max_attempts=12
+
+    log_step "Verifying new root credentials against MinIO API..."
+
+    while [[ "${attempt}" -lt "${max_attempts}" ]]; do
+        if mc_verify_credentials_once; then
+            log_success "Root credentials verified successfully."
+            return 0
+        fi
+
+        attempt=$((attempt + 1))
+        if [[ "${attempt}" -lt "${max_attempts}" ]]; then
+            log_info "Waiting for MinIO to accept new credentials (${attempt}/${max_attempts})..."
+            sleep 5
+        fi
+    done
+
+    log_error "Credential verification failed."
+    return 1
+}
+
+mc_verify_credentials_once() {
+    if [[ "${MINIO_EXPOSE_PORTS:-false}" == "true" ]]; then
+        docker run --rm --network host minio/mc:latest \
+            alias set verifyminio "http://127.0.0.1:${MINIO_API_PORT}" \
+            "${MINIO_ROOT_USER}" "${MINIO_ROOT_PASSWORD}" --api S3v4 &>/dev/null && \
+        docker run --rm --network host minio/mc:latest \
+            admin info verifyminio &>/dev/null
+        return $?
+    fi
+
+    docker run --rm --network "${MINIO_NETWORK}" minio/mc:latest \
+        alias set verifyminio "http://${MINIO_CONTAINER_NAME}:9000" \
+        "${MINIO_ROOT_USER}" "${MINIO_ROOT_PASSWORD}" --api S3v4 &>/dev/null && \
+    docker run --rm --network "${MINIO_NETWORK}" minio/mc:latest \
+        admin info verifyminio &>/dev/null
+}

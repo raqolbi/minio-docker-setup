@@ -57,6 +57,11 @@ compose_cmd() {
     docker compose -f "${PROJECT_ROOT}/docker-compose.yml" --env-file "${PROJECT_ROOT}/.env" "$@"
 }
 
+compose_recreate() {
+    log_step "Recreating container to apply updated environment..."
+    compose_cmd up -d --force-recreate --remove-orphans
+}
+
 wait_for_healthy() {
     local container_name="$1"
     local timeout="${2:-180}"

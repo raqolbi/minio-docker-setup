@@ -150,7 +150,7 @@ run_update_public_urls() {
     update_public_url_config
 
     log_progress "Applying configuration (recreating container)..."
-    compose_cmd up -d
+    compose_recreate
 
     if ! wait_for_healthy "${MINIO_CONTAINER_NAME}"; then
         die "MinIO failed to restart after URL update. Check logs with: ./setup.sh logs"
@@ -177,18 +177,25 @@ run_reset_credentials() {
     show_reset_credentials_banner
     collect_reset_credentials
 
-    log_progress "Stopping MinIO..."
-    compose_cmd stop
+    log_progress "Stopping and removing MinIO container..."
+    compose_cmd down --remove-orphans
 
     reset_minio_iam_store
     patch_credentials_env
     load_env_file
 
     log_progress "Starting MinIO with new credentials..."
-    compose_cmd up -d
+    compose_recreate
 
     if ! wait_for_healthy "${MINIO_CONTAINER_NAME}"; then
         die "MinIO failed to start after credential reset. Check logs with: ./setup.sh logs"
+    fi
+
+    if ! verify_root_credentials; then
+        log_error "New credentials could not be verified via API."
+        log_warn "Check: ./setup.sh logs"
+        log_warn "Ensure MINIO_DATA_PATH is correct: ${MINIO_DATA_PATH}"
+        die "Credential reset incomplete."
     fi
 
     if ! run_health_checks; then

@@ -249,6 +249,9 @@ show_reset_credentials_complete() {
 
     if [[ -n "${MINIO_BROWSER_REDIRECT_URL:-}" ]]; then
         log_info "Console URL: ${MINIO_BROWSER_REDIRECT_URL}"
+        echo ""
+        log_warn "Use the public Console URL above to log in."
+        log_warn "If login still fails, run: ./setup.sh update-urls and clear public URLs."
     elif [[ "${MINIO_EXPOSE_PORTS:-false}" == "true" ]]; then
         log_info "Console URL: http://$(get_primary_ip):${MINIO_CONSOLE_PORT}"
     fi
