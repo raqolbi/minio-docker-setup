@@ -180,7 +180,7 @@ This will:
 
 **Buckets and object data are preserved.** IAM users, groups, and policies are cleared automatically and must be recreated if needed.
 
-Credentials are written literally into `docker-compose.yml` (not shell-escaped `.env` substitution) so special characters in passwords work correctly with Docker Compose.
+Credentials are written into `docker-compose.yml` as YAML single-quoted literals with `$` doubled to `$$` (Docker Compose interpolation escaping), so passwords containing `$`, `%`, `&`, or quotes are applied to MinIO exactly as entered. This is verified end-to-end during install.
 
 ## Update
 

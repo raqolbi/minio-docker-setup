@@ -158,10 +158,18 @@ quote_env_value() {
 }
 
 # YAML single-quoted string for docker-compose.yml.
+#
+# Two layers of escaping are required:
+#   1. YAML single-quote: a literal ' becomes ''.
+#   2. Docker Compose interpolation: Compose still expands $VAR / ${VAR}
+#      inside YAML values (even single-quoted), so a literal $ must be
+#      written as $$ to survive interpolation.
 yaml_single_quote() {
     local value="$1"
+    local dollar='$'
 
     value="${value//\'/\'\'}"
+    value="${value//${dollar}/${dollar}${dollar}}"
     printf "'%s'" "${value}"
 }
 
