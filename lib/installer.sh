@@ -275,10 +275,7 @@ run_uninstall() {
     local env_file="${PROJECT_ROOT}/.env"
 
     if [[ -f "${env_file}" ]]; then
-        # shellcheck disable=SC1090
-        set -a
-        source "${env_file}"
-        set +a
+        load_env_file
     fi
 
     log_progress "Uninstalling MinIO..."

@@ -149,17 +149,61 @@ generate_password() {
     echo "${password}" | fold -w1 | shuf | tr -d '\n'
 }
 
+escape_env_value() {
+    local value="$1"
+    local backtick=$'\`'
+
+    value="${value//\\/\\\\}"
+    value="${value//\"/\\\"}"
+    value="${value//\$/\\$}"
+    value="${value//${backtick}/\\${backtick}}"
+    printf '%s' "${value}"
+}
+
+quote_env_value() {
+    printf '"%s"' "$(escape_env_value "$1")"
+}
+
+parse_dotenv_value() {
+    local value="$1"
+
+    if [[ "${#value}" -ge 2 && "${value:0:1}" == '"' && "${value: -1}" == '"' ]]; then
+        value="${value:1:${#value}-2}"
+        value="${value//\\\"/\"}"
+        value="${value//\\\$/\$}"
+        value="${value//\\\\/\\}"
+    elif [[ "${#value}" -ge 2 && "${value:0:1}" == "'" && "${value: -1}" == "'" ]]; then
+        value="${value:1:${#value}-2}"
+    fi
+
+    printf '%s' "${value}"
+}
+
 load_env_file() {
     local env_file="${PROJECT_ROOT}/.env"
+    local line key value
 
     if [[ ! -f "${env_file}" ]]; then
         die "Configuration not found. Run './setup.sh install' first."
     fi
 
-    # shellcheck disable=SC1090
-    set -a
-    source "${env_file}"
-    set +a
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+        line="${line%$'\r'}"
+        [[ -z "${line}" || "${line}" =~ ^[[:space:]]*# ]] && continue
+        [[ "${line}" != *"="* ]] && continue
+
+        key="${line%%=*}"
+        value="${line#*=}"
+
+        if [[ ! "${key}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+            log_warn "Skipping invalid env key: ${key}"
+            continue
+        fi
+
+        value="$(parse_dotenv_value "${value}")"
+        printf -v "${key}" '%s' "${value}"
+        export "${key}"
+    done < "${env_file}"
 }
 
 timestamp() {

@@ -45,7 +45,12 @@ generate_env_file() {
         line=$(replace_placeholder "${line}" '{{MINIO_CREATE_BUCKET}}' "${MINIO_CREATE_BUCKET:-false}")
         line=$(replace_placeholder "${line}" '{{MINIO_SERVER_URL}}' "${MINIO_SERVER_URL:-}")
         line=$(replace_placeholder "${line}" '{{MINIO_BROWSER_REDIRECT_URL}}' "${MINIO_BROWSER_REDIRECT_URL:-}")
-        printf '%s\n' "${line}" >> "${output}"
+
+        if [[ "${line}" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+            printf '%s=%s\n' "${BASH_REMATCH[1]}" "$(quote_env_value "${BASH_REMATCH[2]}")" >> "${output}"
+        else
+            printf '%s\n' "${line}" >> "${output}"
+        fi
     done < "${template}"
 
     chmod 600 "${output}"
