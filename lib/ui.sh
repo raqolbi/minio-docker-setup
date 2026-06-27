@@ -263,8 +263,8 @@ collect_reset_credentials() {
 
     echo -e "  ${BOLD}Current username:${NC} ${MINIO_ROOT_USER}"
     echo ""
-    log_warn "This resets MinIO root login by clearing the entire IAM store on disk."
-    log_warn "IAM users, groups, service accounts, and policies will be removed automatically."
+    log_warn "This resets MinIO root login by clearing the config store on disk."
+    log_warn "A backup of config is saved under .minio.sys/config.bak-* before removal."
     log_warn "Buckets and object data are kept."
     echo ""
 

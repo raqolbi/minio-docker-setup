@@ -1,38 +1,6 @@
 #!/usr/bin/env bash
 # Main installation, backup, restore, uninstall, and bucket management.
 
-MC_BIN="${PROJECT_ROOT}/bin/mc"
-
-ensure_mc_client() {
-    log_step "Ensuring MinIO Client (mc) is available..."
-
-    if [[ -x "${MC_BIN}" ]]; then
-        log_success "MinIO Client found at ${MC_BIN}"
-        return 0
-    fi
-
-    local arch os url
-
-    os="linux"
-    case "$(uname -m)" in
-        x86_64|amd64) arch="amd64" ;;
-        aarch64|arm64) arch="arm64" ;;
-        armv7l|armv6l) arch="arm" ;;
-        *)
-            die "Unsupported architecture for mc: $(uname -m)"
-            ;;
-    esac
-
-    url="https://dl.min.io/client/mc/release/${os}-${arch}/mc"
-    mkdir -p "${PROJECT_ROOT}/bin"
-
-    log_info "Downloading mc from ${url}..."
-    curl -fsSL "${url}" -o "${MC_BIN}"
-    chmod +x "${MC_BIN}"
-
-    log_success "MinIO Client installed to ${MC_BIN}"
-}
-
 create_default_bucket() {
     local bucket_name="$1"
 
@@ -45,6 +13,7 @@ create_default_bucket() {
 
     if [[ "${MINIO_EXPOSE_PORTS}" == "true" ]]; then
         ensure_mc_client
+        log_success "MinIO Client ready at ${MC_BIN}"
         "${MC_BIN}" alias set localminio "http://127.0.0.1:${MINIO_API_PORT}" \
             "${MINIO_ROOT_USER}" "${MINIO_ROOT_PASSWORD}" --api S3v4
 

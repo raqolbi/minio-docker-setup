@@ -174,7 +174,7 @@ Or select **12) Reset Root Password** from the menu.
 This will:
 
 1. Stop MinIO
-2. Remove the entire IAM store on disk (`.minio.sys/config/iam`) — users, groups, service accounts, and policies
+2. Remove the MinIO config store on disk (`.minio.sys/config`) — users, groups, service accounts, and policies (backup created automatically)
 3. Set a new root username and password in `.env`
 4. Start MinIO and apply the new credentials
 
