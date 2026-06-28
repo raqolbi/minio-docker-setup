@@ -14,6 +14,10 @@ load_libraries() {
     source "${PROJECT_ROOT}/lib/generator.sh"
     # shellcheck source=lib/credentials.sh
     source "${PROJECT_ROOT}/lib/credentials.sh"
+    # shellcheck source=lib/mc.sh
+    source "${PROJECT_ROOT}/lib/mc.sh"
+    # shellcheck source=lib/access.sh
+    source "${PROJECT_ROOT}/lib/access.sh"
     # shellcheck source=lib/network.sh
     source "${PROJECT_ROOT}/lib/network.sh"
     # shellcheck source=lib/installer.sh

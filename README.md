@@ -12,6 +12,8 @@ Production-ready, fully interactive MinIO installer for **Ubuntu Server 22.04+**
 - Optional host port exposure or internal-only Docker network
 - Health checks and post-install verification
 - Automatic bucket creation via MinIO Client (`mc`)
+- Application user with least-privilege IAM policy (ListBucket, GetObject, PutObject, DeleteObject)
+- Optional anonymous (public) read access per bucket
 - Backup and restore support
 - Lifecycle commands: start, stop, restart, logs, status, update
 
@@ -62,7 +64,9 @@ Pass a command directly without opening the menu:
     ├── docker.sh           # Docker install and container ops
     ├── generator.sh        # Template rendering
     ├── credentials.sh      # Root credential reset (IAM store)
-    ├── installer.sh        # Install flow, backup, restore, bucket
+    ├── mc.sh                 # MinIO Client helpers (buckets, IAM, anonymous access)
+    ├── access.sh             # Bucket/user access setup and manage menu
+    ├── installer.sh          # Install flow, backup, restore
     ├── network.sh          # Docker network management
     └── utils.sh            # Shared utilities
 ```
@@ -89,6 +93,7 @@ Generated at install time (do not edit manually):
 | 11 | Update Public URLs | Set or update MINIO_SERVER_URL / MINIO_BROWSER_REDIRECT_URL |
 | 12 | Reset Root Password | Reset root username/password (keeps bucket data) |
 | 13 | Diagnose | Troubleshoot login and credential issues |
+| 14 | Manage Buckets & User Access | Create buckets, public access, application user, and IAM policy |
 | 0 | Exit | Close the menu |
 
 ## CLI Commands
@@ -107,6 +112,7 @@ Generated at install time (do not edit manually):
 | `./setup.sh update` | Pull latest MinIO image and recreate |
 | `./setup.sh update-urls` | Update public API and Console URLs |
 | `./setup.sh reset-password` | Reset root username and password |
+| `./setup.sh manage-access` | Configure buckets, public access, and application user |
 | `./setup.sh backup` | Create compressed backup |
 | `./setup.sh restore [file]` | Restore from backup archive |
 
@@ -119,8 +125,10 @@ The installer asks for:
 3. **Expose to host** — if yes, configure API (9000) and Console (9001) ports
 4. **Root username** (default: `minioadmin`)
 5. **Password** — auto-generated (24+ alphanumeric chars) or manual (letters and numbers, min 24)
-6. **Default bucket** — optional (default name: `storage`)
-7. **Public URLs** — optional; for domain + reverse proxy (HTTPS)
+6. **Buckets** — create one or more buckets during setup
+7. **Public access** — choose which buckets allow anonymous download
+8. **Application user** — optional IAM user (default: `app-user`) with least-privilege policy on selected buckets
+9. **Public URLs** — optional; for domain + reverse proxy (HTTPS)
 
 It then:
 
@@ -128,8 +136,9 @@ It then:
 - Generates `.env` and `docker-compose.yml`
 - Creates the `minio-network` Docker network
 - Starts MinIO and waits until healthy
-- Creates the bucket if requested
-- Displays a final summary with endpoints and credentials
+- Waits for the API to accept `mc` commands, then creates buckets, IAM policy, and application user (idempotent)
+- Configures anonymous read access only on selected public buckets
+- Displays a final summary with root admin, application user, bucket access, and endpoints
 
 ### Internal-only mode
 
@@ -343,16 +352,19 @@ If login still fails on both IP and public URL, reset credentials:
 
 The reset recreates the Docker container so new credentials from `.env` are applied. If `MINIO_BROWSER_REDIRECT_URL` is set, log in via that public URL — not `http://<ip>:9001`.
 
-### Bucket creation failed
+### Bucket or access setup failed
 
-Ensure MinIO is healthy, then create manually:
+Ensure MinIO is healthy, then re-run the access wizard:
 
 ```bash
-docker run --rm --network minio-network minio/mc:latest \
-  alias set local http://minio:9000 minioadmin 'YOUR_PASSWORD'
+./setup.sh manage-access
+```
 
-docker run --rm --network minio-network minio/mc:latest \
-  mb local/storage
+Or check status and logs:
+
+```bash
+./setup.sh status
+./setup.sh logs
 ```
 
 ### ShellCheck
@@ -362,6 +374,34 @@ Validate scripts locally:
 ```bash
 shellcheck setup.sh lib/*.sh
 ```
+
+## Manage Buckets & User Access
+
+After installation, use menu **14) Manage Buckets & User Access** or:
+
+```bash
+./setup.sh manage-access
+```
+
+Sub-menu options:
+
+1. **Configure buckets and public access** — add buckets and set anonymous download
+2. **Create or update application user** — set username/password and attach IAM policy
+3. **Apply full access setup** — run the complete interactive wizard (same as install)
+4. **Show current access summary** — display configured buckets and endpoints
+
+CLI shortcuts:
+
+```bash
+./setup.sh manage-access buckets   # buckets + public access only
+./setup.sh manage-access user      # application user only
+./setup.sh manage-access full      # full wizard
+./setup.sh manage-access summary   # print summary
+```
+
+The application user receives a generated IAM policy with only `ListBucket`, `GetObject`, `PutObject`, and `DeleteObject` on the configured buckets. Operations are idempotent — re-running setup updates policies and users without failing on existing resources.
+
+Application passwords are stored in `secrets/app_password` (not in `.env`).
 
 ## Security Notes
 

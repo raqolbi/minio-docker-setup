@@ -276,6 +276,53 @@ validate_public_urls_pair() {
     return 0
 }
 
+validate_bucket_name() {
+    local name="$1"
+
+    if [[ ${#name} -lt 3 || ${#name} -gt 63 ]]; then
+        log_error "Bucket name must be 3–63 characters: ${name}"
+        return 1
+    fi
+
+    if [[ ! "${name}" =~ ^[a-z0-9][a-z0-9.-]*[a-z0-9]$ ]]; then
+        log_error "Invalid bucket name '${name}'. Use lowercase letters, numbers, dots, and hyphens."
+        return 1
+    fi
+
+    if [[ "${name}" =~ \.\. ]]; then
+        log_error "Bucket name cannot contain consecutive dots: ${name}"
+        return 1
+    fi
+
+    if [[ "${name}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        log_error "Bucket name cannot look like an IP address: ${name}"
+        return 1
+    fi
+
+    return 0
+}
+
+validate_app_username() {
+    local user="$1"
+
+    if [[ ${#user} -lt 3 ]]; then
+        log_error "Application username must be at least 3 characters."
+        return 1
+    fi
+
+    if [[ ! "${user}" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]*$ ]]; then
+        log_error "Invalid application username. Use alphanumeric characters, dots, hyphens, or underscores."
+        return 1
+    fi
+
+    if [[ "${user}" == "${MINIO_ROOT_USER:-}" ]]; then
+        log_error "Application username must differ from the root admin username."
+        return 1
+    fi
+
+    return 0
+}
+
 validate_root_username() {
     local user="$1"
 

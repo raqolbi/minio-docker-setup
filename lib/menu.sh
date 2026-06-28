@@ -23,6 +23,7 @@ show_menu_options() {
     echo -e "  ${BOLD}11)${NC} Update Public URLs"
     echo -e "  ${BOLD}12)${NC} Reset Root Password"
     echo -e "  ${BOLD}13)${NC} Diagnose Login Issues"
+    echo -e "  ${BOLD}14)${NC} Manage Buckets & User Access"
     echo -e "  ${BOLD}0)${NC}  Exit"
     echo ""
 }
@@ -99,6 +100,10 @@ run_interactive_menu() {
                 ;;
             13)
                 run_command_from_menu diagnose || true
+                pause_menu
+                ;;
+            14)
+                run_command_from_menu manage-access || true
                 pause_menu
                 ;;
             0)

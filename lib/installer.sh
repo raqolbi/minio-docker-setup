@@ -1,78 +1,5 @@
 #!/usr/bin/env bash
-# Main installation, backup, restore, uninstall, and bucket management.
-
-create_default_bucket() {
-    local bucket_name="$1"
-
-    if [[ -z "${bucket_name}" ]]; then
-        log_warn "No bucket name specified; skipping bucket creation."
-        return 0
-    fi
-
-    log_step "Creating bucket '${bucket_name}'..."
-
-    if [[ "${MINIO_EXPOSE_PORTS}" == "true" ]]; then
-        ensure_mc_client
-        log_success "MinIO Client ready at ${MC_BIN}"
-        "${MC_BIN}" alias set localminio "http://127.0.0.1:${MINIO_API_PORT}" \
-            "${MINIO_ROOT_USER}" "${MINIO_ROOT_PASSWORD}" --api S3v4
-
-        if "${MC_BIN}" ls "localminio/${bucket_name}" &>/dev/null; then
-            log_info "Bucket '${bucket_name}' already exists."
-        else
-            "${MC_BIN}" mb "localminio/${bucket_name}"
-            log_success "Bucket '${bucket_name}' created."
-        fi
-
-        if "${MC_BIN}" ls "localminio/${bucket_name}" &>/dev/null; then
-            log_success "Verified bucket '${bucket_name}' exists."
-            return 0
-        fi
-    else
-        log_info "Using Docker network for bucket operations..."
-        local mc_config endpoint
-
-        mc_config=$(mktemp -d)
-        endpoint="http://${MINIO_CONTAINER_NAME}:9000"
-
-        if docker run --rm --network "${MINIO_NETWORK}" \
-            -v "${mc_config}:/root/.mc" \
-            minio/mc:latest alias set localminio "${endpoint}" \
-            "${MINIO_ROOT_USER}" "${MINIO_ROOT_PASSWORD}" --api S3v4 && \
-           docker run --rm --network "${MINIO_NETWORK}" \
-            -v "${mc_config}:/root/.mc" \
-            minio/mc:latest ls "localminio/${bucket_name}" &>/dev/null; then
-            log_info "Bucket '${bucket_name}' already exists."
-            rm -rf "${mc_config}"
-            return 0
-        fi
-
-        if docker run --rm --network "${MINIO_NETWORK}" \
-            -v "${mc_config}:/root/.mc" \
-            minio/mc:latest mb "localminio/${bucket_name}" && \
-           docker run --rm --network "${MINIO_NETWORK}" \
-            -v "${mc_config}:/root/.mc" \
-            minio/mc:latest ls "localminio/${bucket_name}" &>/dev/null; then
-            log_success "Bucket '${bucket_name}' created."
-            rm -rf "${mc_config}"
-            return 0
-        fi
-
-        rm -rf "${mc_config}"
-    fi
-
-    log_error "Failed to verify bucket '${bucket_name}'."
-    return 1
-}
-
-setup_bucket_if_requested() {
-    if [[ "${MINIO_CREATE_BUCKET:-false}" != "true" ]]; then
-        log_info "Bucket creation skipped."
-        return 0
-    fi
-
-    create_default_bucket "${MINIO_BUCKET}"
-}
+# Main installation, backup, restore, uninstall, and access management.
 
 run_installation() {
     local server_ip api_endpoint console_endpoint
@@ -118,9 +45,10 @@ run_installation() {
         die "Installation finished but login credentials could not be verified. Check: ./setup.sh logs"
     fi
 
-    if [[ "${MINIO_CREATE_BUCKET:-false}" == "true" ]]; then
-        log_progress "Setting up default bucket..."
-        setup_bucket_if_requested || log_warn "Bucket setup encountered issues."
+    if [[ -n "${MINIO_BUCKETS:-}" || "${MINIO_SETUP_APP_USER:-false}" == "true" ]]; then
+        log_progress "Configuring buckets, IAM policy, and application user..."
+        persist_access_config
+        apply_buckets_and_access || log_warn "Bucket and access setup encountered issues."
     fi
 
     server_ip=$(get_primary_ip)
@@ -135,6 +63,7 @@ run_installation() {
     fi
 
     show_install_complete "${server_ip}" "${api_endpoint}" "${console_endpoint}"
+    show_access_summary "${server_ip}" "${api_endpoint}" "${console_endpoint}"
 }
 
 run_update_public_urls() {
@@ -226,6 +155,12 @@ run_backup() {
         chmod 600 "${temp_dir}/secrets/root_password"
     fi
 
+    if [[ -f "${PROJECT_ROOT}/secrets/app_password" ]]; then
+        mkdir -p "${temp_dir}/secrets"
+        cp "${PROJECT_ROOT}/secrets/app_password" "${temp_dir}/secrets/"
+        chmod 600 "${temp_dir}/secrets/app_password"
+    fi
+
     log_step "Archiving MinIO data from ${MINIO_DATA_PATH}..."
     if [[ -d "${MINIO_DATA_PATH}" ]]; then
         if [[ "${EUID}" -eq 0 ]]; then
@@ -284,12 +219,30 @@ run_restore() {
         chmod 600 "${PROJECT_ROOT}/.env"
         load_env_file
         generate_compose_file
+        if [[ -f "${extracted}/secrets/root_password" ]]; then
+            mkdir -p "${PROJECT_ROOT}/secrets"
+            cp "${extracted}/secrets/root_password" "${PROJECT_ROOT}/secrets/root_password"
+            chmod 600 "${PROJECT_ROOT}/secrets/root_password"
+            chmod 700 "${PROJECT_ROOT}/secrets"
+        fi
+        if [[ -f "${extracted}/secrets/app_password" ]]; then
+            mkdir -p "${PROJECT_ROOT}/secrets"
+            cp "${extracted}/secrets/app_password" "${PROJECT_ROOT}/secrets/app_password"
+            chmod 600 "${PROJECT_ROOT}/secrets/app_password"
+            chmod 700 "${PROJECT_ROOT}/secrets"
+        fi
     elif [[ -f "${extracted}/config/docker-compose.yml" ]]; then
         cp "${extracted}/config/docker-compose.yml" "${PROJECT_ROOT}/docker-compose.yml"
         if [[ -f "${extracted}/secrets/root_password" ]]; then
             mkdir -p "${PROJECT_ROOT}/secrets"
             cp "${extracted}/secrets/root_password" "${PROJECT_ROOT}/secrets/root_password"
             chmod 600 "${PROJECT_ROOT}/secrets/root_password"
+            chmod 700 "${PROJECT_ROOT}/secrets"
+        fi
+        if [[ -f "${extracted}/secrets/app_password" ]]; then
+            mkdir -p "${PROJECT_ROOT}/secrets"
+            cp "${extracted}/secrets/app_password" "${PROJECT_ROOT}/secrets/app_password"
+            chmod 600 "${PROJECT_ROOT}/secrets/app_password"
             chmod 700 "${PROJECT_ROOT}/secrets"
         fi
     fi

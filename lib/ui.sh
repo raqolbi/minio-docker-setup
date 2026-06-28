@@ -40,12 +40,11 @@ show_install_complete() {
         log_warn "Log in via the Public Console URL above — not http://IP:${MINIO_CONSOLE_PORT}"
     fi
 
-    echo -e "  ${BOLD}Username:${NC}          ${MINIO_ROOT_USER}"
-    echo -e "  ${BOLD}Password:${NC}          ${MINIO_ROOT_PASSWORD}"
-    echo -e "  ${BOLD}Bucket:${NC}            ${MINIO_BUCKET:-none}"
-    echo -e "  ${BOLD}Data Directory:${NC}    ${MINIO_DATA_PATH}"
+    echo -e "  ${BOLD}Root Admin Username:${NC} ${MINIO_ROOT_USER}"
+    echo -e "  ${BOLD}Root Admin Password:${NC} ${MINIO_ROOT_PASSWORD}"
+    echo -e "  ${BOLD}Data Directory:${NC}      ${MINIO_DATA_PATH}"
     echo ""
-    echo -e "${YELLOW}Store your credentials securely. The password is shown once.${NC}"
+    echo -e "${YELLOW}Store root credentials securely. The password is shown once.${NC}"
     echo -e "${YELLOW}If login fails, run: ./setup.sh diagnose${NC}"
     echo ""
 }
@@ -213,20 +212,16 @@ collect_install_config() {
     esac
     echo "--------------------------------"
 
-    MINIO_CREATE_BUCKET="false"
-    MINIO_BUCKET=""
-
-    if prompt_yes_no "Create Default Bucket?" "Y"; then
-        MINIO_CREATE_BUCKET="true"
-        MINIO_BUCKET=$(prompt_default "Bucket Name" "storage")
-    fi
+    echo "--------------------------------"
+    log_info "Buckets, application user, and IAM policy"
+    collect_access_config "true"
 
     collect_public_url_config "false"
 
     echo ""
     export MINIO_CONTAINER_NAME MINIO_DATA_PATH MINIO_EXPOSE_PORTS
     export MINIO_API_PORT MINIO_CONSOLE_PORT MINIO_ROOT_USER MINIO_ROOT_PASSWORD
-    export MINIO_CREATE_BUCKET MINIO_BUCKET
+    export MINIO_BUCKETS MINIO_PUBLIC_BUCKETS MINIO_SETUP_APP_USER MINIO_APP_USER MINIO_APP_PASSWORD
     export MINIO_SERVER_URL MINIO_BROWSER_REDIRECT_URL
 }
 
@@ -348,6 +343,7 @@ Commands:
   update      Pull latest MinIO image and recreate containers
   update-urls   Update public API and Console URLs (MINIO_SERVER_URL)
   reset-password Reset root username and password (keeps bucket data)
+  manage-access Configure buckets, public access, and application user
   backup      Create compressed backup of config and data
   restore     Restore from a backup archive
 
@@ -358,6 +354,7 @@ Examples:
   ./setup.sh update-urls
   ./setup.sh diagnose
   ./setup.sh reset-password
+  ./setup.sh manage-access
   ./setup.sh backup
   ./setup.sh restore /path/to/backup.tar.gz
 EOF

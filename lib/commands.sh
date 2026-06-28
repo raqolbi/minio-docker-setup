@@ -39,6 +39,9 @@ dispatch_command() {
         reset-password)
             run_reset_credentials
             ;;
+        manage-access)
+            run_manage_access_command "${2:-}"
+            ;;
         backup)
             run_backup
             ;;
@@ -72,6 +75,7 @@ run_command_from_menu() {
         update)        cmd_update ;;
         update-urls)   run_update_public_urls ;;
         reset-password) run_reset_credentials ;;
+        manage-access) run_manage_access_command "${2:-}" ;;
         backup)        run_backup ;;
         restore)       run_restore "${restore_path}" ;;
         *)

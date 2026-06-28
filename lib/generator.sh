@@ -23,7 +23,7 @@ write_env_line() {
     local key="$1"
     local value="$2"
 
-    if [[ -z "${value}" && "${key}" =~ ^(MINIO_SERVER_URL|MINIO_BROWSER_REDIRECT_URL|MINIO_BUCKET)$ ]]; then
+    if [[ -z "${value}" && "${key}" =~ ^(MINIO_SERVER_URL|MINIO_BROWSER_REDIRECT_URL|MINIO_BUCKETS|MINIO_PUBLIC_BUCKETS|MINIO_APP_USER)$ ]]; then
         return 0
     fi
 
@@ -58,10 +58,12 @@ generate_env_file() {
     write_env_line "MINIO_API_PORT" "${MINIO_API_PORT}" >> "${output}"
     write_env_line "MINIO_CONSOLE_PORT" "${MINIO_CONSOLE_PORT}" >> "${output}"
     write_env_line "MINIO_DATA_PATH" "${MINIO_DATA_PATH}" >> "${output}"
-    write_env_line "MINIO_BUCKET" "${MINIO_BUCKET:-}" >> "${output}"
+    write_env_line "MINIO_BUCKETS" "${MINIO_BUCKETS:-}" >> "${output}"
+    write_env_line "MINIO_PUBLIC_BUCKETS" "${MINIO_PUBLIC_BUCKETS:-}" >> "${output}"
+    write_env_line "MINIO_SETUP_APP_USER" "${MINIO_SETUP_APP_USER:-false}" >> "${output}"
+    write_env_line "MINIO_APP_USER" "${MINIO_APP_USER:-}" >> "${output}"
     write_env_line "MINIO_EXPOSE_PORTS" "${MINIO_EXPOSE_PORTS}" >> "${output}"
     write_env_line "MINIO_NETWORK" "${MINIO_NETWORK:-minio-network}" >> "${output}"
-    write_env_line "MINIO_CREATE_BUCKET" "${MINIO_CREATE_BUCKET:-false}" >> "${output}"
     write_env_line "MINIO_SERVER_URL" "${MINIO_SERVER_URL:-}" >> "${output}"
     write_env_line "MINIO_BROWSER_REDIRECT_URL" "${MINIO_BROWSER_REDIRECT_URL:-}" >> "${output}"
 
