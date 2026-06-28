@@ -524,7 +524,7 @@ run_manage_access_menu() {
 }
 
 run_manage_access_command() {
-    if [[ $# -gt 0 ]]; then
+    if [[ $# -gt 0 && -n "${1}" ]]; then
         case "${1}" in
             buckets) run_manage_access_wizard "buckets" ;;
             user)    run_manage_access_wizard "user" ;;
