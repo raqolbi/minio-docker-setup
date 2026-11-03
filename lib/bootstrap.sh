@@ -20,6 +20,8 @@ load_libraries() {
     source "${PROJECT_ROOT}/lib/access.sh"
     # shellcheck source=lib/network.sh
     source "${PROJECT_ROOT}/lib/network.sh"
+    # shellcheck source=lib/autoupdate.sh
+    source "${PROJECT_ROOT}/lib/autoupdate.sh"
     # shellcheck source=lib/installer.sh
     source "${PROJECT_ROOT}/lib/installer.sh"
     # shellcheck source=lib/install.sh

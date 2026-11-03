@@ -4,3 +4,5 @@ secrets/
 bin/
 backups/
 .restore-*
+.update.lock
+.update-available

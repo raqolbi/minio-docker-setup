@@ -127,7 +127,9 @@ collect_public_buckets_interactive() {
     fi
     echo ""
 
-    read -r -p "Selection (numbers separated by commas, a, n${mode:+}, k}) [${default_choice}]: " selection
+    local options_hint="numbers separated by commas, a, n"
+    [[ "${mode}" == "manage" ]] && options_hint+=", k"
+    read -r -p "Selection (${options_hint}) [${default_choice}]: " selection
     selection="${selection:-${default_choice}}"
     selection="${selection// /}"
 
@@ -463,7 +465,7 @@ access_api_endpoint() {
     if [[ -n "${MINIO_SERVER_URL:-}" ]]; then
         echo "${MINIO_SERVER_URL}"
     elif [[ "${MINIO_EXPOSE_PORTS:-false}" == "true" ]]; then
-        echo "http://$(get_primary_ip):${MINIO_API_PORT}"
+        echo "http://$(display_host):${MINIO_API_PORT}"
     else
         echo "Internal (Docker network: ${MINIO_NETWORK:-minio-network})"
     fi
@@ -473,7 +475,7 @@ access_console_endpoint() {
     if [[ -n "${MINIO_BROWSER_REDIRECT_URL:-}" ]]; then
         echo "${MINIO_BROWSER_REDIRECT_URL}"
     elif [[ "${MINIO_EXPOSE_PORTS:-false}" == "true" ]]; then
-        echo "http://$(get_primary_ip):${MINIO_CONSOLE_PORT}"
+        echo "http://$(display_host):${MINIO_CONSOLE_PORT}"
     else
         echo "Internal (Docker network: ${MINIO_NETWORK:-minio-network})"
     fi
@@ -492,17 +494,17 @@ run_manage_access_menu() {
 
         case "${choice}" in
             1)
-                run_manage_access_wizard "buckets" || true
+                menu_action run_manage_access_wizard "buckets"
                 echo ""
                 read -r -p "Press Enter to continue..."
                 ;;
             2)
-                run_manage_access_wizard "user" || true
+                menu_action run_manage_access_wizard "user"
                 echo ""
                 read -r -p "Press Enter to continue..."
                 ;;
             3)
-                run_manage_access_wizard "full" || true
+                menu_action run_manage_access_wizard "full"
                 echo ""
                 read -r -p "Press Enter to continue..."
                 ;;

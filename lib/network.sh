@@ -47,7 +47,7 @@ show_network_endpoints() {
         return 0
     fi
 
-    server_ip=$(get_primary_ip)
+    server_ip=$(display_host)
 
     echo ""
     log_success "MinIO is exposed on the host:"

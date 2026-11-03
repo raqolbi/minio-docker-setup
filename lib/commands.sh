@@ -25,13 +25,19 @@ dispatch_command() {
             cmd_logs "${2:-}"
             ;;
         diagnose)
-            cmd_diagnose
+            cmd_diagnose "${arg}"
             ;;
         status)
             cmd_status
             ;;
         update)
-            cmd_update
+            cmd_update "${arg}"
+            ;;
+        check-update)
+            cmd_check_update || [[ $? -eq 1 ]]
+            ;;
+        auto-update)
+            cmd_auto_update "${arg}"
             ;;
         update-urls)
             run_update_public_urls
@@ -73,6 +79,8 @@ run_command_from_menu() {
         diagnose)      cmd_diagnose ;;
         status)        cmd_status ;;
         update)        cmd_update ;;
+        check-update)  cmd_check_update || true ;;
+        auto-update)   cmd_auto_update "${2:-status}" ;;
         update-urls)   run_update_public_urls ;;
         reset-password) run_reset_credentials ;;
         manage-access) run_manage_access_command "${2:-}" ;;

@@ -1,7 +1,7 @@
 services:
   minio:
     container_name: {{MINIO_CONTAINER_NAME}}
-    image: minio/minio:latest
+    image: {{MINIO_IMAGE}}
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -15,11 +15,17 @@ services:
     networks:
       - {{MINIO_NETWORK}}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
-      interval: 30s
+      # mc/mcli is bundled in the pgsty/silo image.
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
       timeout: 10s
       retries: 5
-      start_period: 40s
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
 networks:
   {{MINIO_NETWORK}}:

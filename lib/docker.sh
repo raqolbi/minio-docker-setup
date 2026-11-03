@@ -6,19 +6,29 @@ install_docker() {
 
     require_root_for_docker_install
 
+    local distro codename
+    # shellcheck disable=SC1091
+    distro="$(. /etc/os-release && echo "${ID}")"
+    # shellcheck disable=SC1091
+    codename="$(. /etc/os-release && echo "${VERSION_CODENAME}")"
+
+    case "${distro}" in
+        ubuntu|debian) ;;
+        *) die "Automatic Docker installation supports Ubuntu and Debian only (detected: ${distro})." ;;
+    esac
+
     apt-get update -qq
-    apt-get install -y ca-certificates curl gnupg lsb-release
+    apt-get install -y ca-certificates curl gnupg
 
     install -m 0755 -d /etc/apt/keyrings
 
     if [[ ! -f /etc/apt/keyrings/docker.gpg ]]; then
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        curl -fsSL "https://download.docker.com/linux/${distro}/gpg" | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
         chmod a+r /etc/apt/keyrings/docker.gpg
     fi
 
     echo \
-        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-        $(. /etc/os-release && echo "${VERSION_CODENAME}") stable" \
+        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/${distro} ${codename} stable" \
         > /etc/apt/sources.list.d/docker.list
 
     apt-get update -qq
@@ -89,7 +99,8 @@ wait_for_healthy() {
                 ;;
             unhealthy)
                 if check_api_internal; then
-                    log_success "MinIO API is reachable (Docker health probe unavailable in minimal image)."
+                    log_warn "Docker health probe reports unhealthy, but the MinIO API is reachable."
+                    log_warn "The image may not bundle 'mc' (used by the healthcheck)."
                     return 0
                 fi
                 log_error "Container reported unhealthy status."
@@ -108,17 +119,37 @@ wait_for_healthy() {
     done
 
     log_error "Timed out waiting for container health."
+    compose_cmd logs --tail=30 2>/dev/null || true
     return 1
+}
+
+# Probe an HTTP URL from inside the MinIO container (no extra helper images).
+# Uses curl when the image has it (pgsty/silo does); otherwise falls back to
+# Docker's health status (healthcheck uses mc ready).
+container_http_ok() {
+    local url="$1"
+    local rc=0
+
+    docker exec "${MINIO_CONTAINER_NAME}" sh -c \
+        'command -v curl >/dev/null 2>&1 || exit 99; curl -fsS --max-time 5 -o /dev/null "$1"' sh "${url}" \
+        &>/dev/null || rc=$?
+
+    if [[ "${rc}" -eq 99 ]]; then
+        [[ "$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{end}}' \
+            "${MINIO_CONTAINER_NAME}" 2>/dev/null)" == "healthy" ]]
+        return $?
+    fi
+
+    return "${rc}"
 }
 
 check_api_internal() {
     if [[ "${MINIO_EXPOSE_PORTS:-false}" == "true" ]]; then
-        curl -fsS --max-time 5 "http://127.0.0.1:${MINIO_API_PORT}/minio/health/live" &>/dev/null
+        curl -fsS --max-time 5 "http://$(host_check_address):${MINIO_API_PORT}/minio/health/live" &>/dev/null
         return $?
     fi
 
-    docker run --rm --network "${MINIO_NETWORK}" curlimages/curl:latest \
-        -fsS --max-time 5 "http://${MINIO_CONTAINER_NAME}:9000/minio/health/live" &>/dev/null
+    container_http_ok "http://127.0.0.1:9000/minio/health/live"
 }
 
 verify_container_running() {
@@ -181,8 +212,8 @@ verify_console_reachable() {
 
     if [[ "${MINIO_EXPOSE_PORTS:-false}" == "true" ]]; then
         local code
-        code=$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 5 \
-            "http://127.0.0.1:${MINIO_CONSOLE_PORT}/" 2>/dev/null || echo "000")
+        code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 \
+            "http://$(host_check_address):${MINIO_CONSOLE_PORT}/" 2>/dev/null || echo "000")
 
         if [[ "${code}" =~ ^[23] ]]; then
             log_success "MinIO Console is reachable (HTTP ${code})."
@@ -193,8 +224,7 @@ verify_console_reachable() {
         return 1
     fi
 
-    if docker run --rm --network "${MINIO_NETWORK}" curlimages/curl:latest \
-        -fsS --max-time 5 -o /dev/null "http://${MINIO_CONTAINER_NAME}:9001/" &>/dev/null; then
+    if container_http_ok "http://127.0.0.1:9001/"; then
         log_success "MinIO Console is reachable (internal)."
         return 0
     fi
@@ -280,11 +310,16 @@ cmd_status() {
             "${MINIO_CONTAINER_NAME}" 2>/dev/null)
         echo -e "Health: ${health}"
 
+        echo "Image:  ${MINIO_IMAGE}"
         if [[ "${MINIO_EXPOSE_PORTS}" == "true" ]]; then
-            echo "API:     http://$(get_primary_ip):${MINIO_API_PORT}"
-            echo "Console: http://$(get_primary_ip):${MINIO_CONSOLE_PORT}"
+            echo "API:     http://$(display_host):${MINIO_API_PORT}"
+            echo "Console: http://$(display_host):${MINIO_CONSOLE_PORT}"
         else
             echo "API/Console: internal Docker network only"
+        fi
+
+        if [[ -f "${PROJECT_ROOT}/.update-available" ]]; then
+            echo -e "${YELLOW}Update available: $(<"${PROJECT_ROOT}/.update-available") (./setup.sh update)${NC}"
         fi
 
         if [[ -n "${MINIO_SERVER_URL:-}" || -n "${MINIO_BROWSER_REDIRECT_URL:-}" ]]; then
@@ -297,12 +332,96 @@ cmd_status() {
     echo ""
 }
 
+image_is_unpinned() {
+    local image="$1"
+    local last="${image##*/}"
+
+    [[ "${image}" != *"@sha256:"* && ( "${last}" != *":"* || "${last}" == *":latest" ) ]]
+}
+
+# Upgrade the server image (default: the pinned Silo release). Image is pinned
+# in .env (MINIO_IMAGE); nothing ever pulls ':latest' implicitly.
 cmd_update() {
+    local new_image="${1:-}"
+    local old_image
+
     load_env_file
-    log_progress "Pulling latest MinIO image..."
-    compose_cmd pull
-    log_progress "Recreating containers..."
-    compose_cmd up -d
-    wait_for_healthy "${MINIO_CONTAINER_NAME}"
-    log_success "MinIO updated to latest image."
+    acquire_operation_lock
+    old_image="${MINIO_IMAGE}"
+
+    echo ""
+    echo -e "${BOLD}Current image:${NC} ${old_image}"
+    echo ""
+
+    # Default target: newest published Silo release. An explicit image
+    # reference can still be passed.
+    if [[ -z "${new_image}" ]]; then
+        log_step "Resolving latest Silo release..."
+        if ! new_image="$(resolve_target_image)"; then
+            log_error "Update aborted. MinIO keeps running ${old_image}."
+            return 1
+        fi
+
+        # Never downgrade implicitly.
+        if [[ "${old_image}" == *"pgsty/silo:"* && "${new_image}" == *"pgsty/silo:"* \
+              && "${new_image##*:}" < "${old_image##*:}" ]]; then
+            log_success "Current image ${old_image} is newer than ${new_image}. Nothing to do."
+            return 0
+        fi
+    fi
+    if [[ ! "${new_image}" =~ ^[A-Za-z0-9._/:@-]+$ ]]; then
+        die "Invalid image reference: ${new_image}"
+    fi
+
+    if image_is_unpinned "${new_image}"; then
+        log_warn "Image '${new_image}' is not pinned to a version tag. Pinning a RELEASE.* tag is strongly recommended."
+    fi
+
+    if [[ "${new_image}" == "${old_image}" ]]; then
+        log_success "Already running ${new_image}. Nothing to do."
+        rm -f "${PROJECT_ROOT}/.update-available"
+        return 0
+    fi
+
+    log_info "Release notes: https://github.com/pgsty/silo/releases/tag/${new_image##*:}"
+
+    log_warn "Read the release notes of ${new_image} before upgrading production data."
+    if prompt_yes_no "Create a backup before updating?" "Y"; then
+        run_backup
+    fi
+
+    if ! confirm "Switch to ${new_image} and recreate the container?" "Y"; then
+        log_info "Update cancelled."
+        return 0
+    fi
+
+    log_progress "Pulling ${new_image}..."
+    if ! docker pull "${new_image}"; then
+        log_error "Failed to pull ${new_image}. Nothing was changed."
+        return 1
+    fi
+
+    MINIO_IMAGE="${new_image}"
+    set_env_key_in_file "MINIO_IMAGE" "${MINIO_IMAGE}"
+    generate_compose_file
+    restore_project_ownership
+
+    log_progress "Recreating container..."
+    if compose_cmd up -d --force-recreate --remove-orphans && wait_for_healthy "${MINIO_CONTAINER_NAME}"; then
+        log_success "MinIO now runs ${MINIO_IMAGE}."
+        rm -f "${PROJECT_ROOT}/.update-available"
+        return 0
+    fi
+
+    log_error "MinIO did not become healthy on ${new_image}."
+    if [[ "${old_image}" != "${new_image}" ]] && confirm "Roll back to ${old_image}?" "Y"; then
+        MINIO_IMAGE="${old_image}"
+        set_env_key_in_file "MINIO_IMAGE" "${MINIO_IMAGE}"
+        generate_compose_file
+        restore_project_ownership
+        compose_cmd up -d --force-recreate --remove-orphans
+        wait_for_healthy "${MINIO_CONTAINER_NAME}" || die "Rollback failed. Check: ./setup.sh logs"
+        log_success "Rolled back to ${old_image}."
+    fi
+    return 1
 }

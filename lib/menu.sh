@@ -17,15 +17,31 @@ show_menu_options() {
     echo -e "  ${BOLD}5)${NC}  Restart"
     echo -e "  ${BOLD}6)${NC}  Status"
     echo -e "  ${BOLD}7)${NC}  Logs"
-    echo -e "  ${BOLD}8)${NC}  Update"
+    echo -e "  ${BOLD}8)${NC}  Update Image"
     echo -e "  ${BOLD}9)${NC}  Backup"
     echo -e "  ${BOLD}10)${NC} Restore"
     echo -e "  ${BOLD}11)${NC} Update Public URLs"
     echo -e "  ${BOLD}12)${NC} Reset Root Password"
     echo -e "  ${BOLD}13)${NC} Diagnose Login Issues"
     echo -e "  ${BOLD}14)${NC} Manage Buckets & User Access"
+    echo -e "  ${BOLD}15)${NC} Check for Silo Update"
+    echo -e "  ${BOLD}16)${NC} Auto-Update Settings"
     echo -e "  ${BOLD}0)${NC}  Exit"
     echo ""
+}
+
+# Run a menu action in a subshell so 'die' or Ctrl+C returns to the menu
+# instead of terminating the whole program.
+#
+# The subshell must NOT be part of an '||'/'if' list: bash would then ignore
+# 'set -e' for everything inside it and keep going after failures.
+menu_action() {
+    trap - ERR
+    set +e
+    ( install_err_trap; set -e; "$@" )
+    set -e
+    install_err_trap
+    return 0
 }
 
 pause_menu() {
@@ -48,62 +64,75 @@ run_interactive_menu() {
         case "${choice}" in
             1)
                 log_progress "Starting installation..."
-                run_install_command || true
+                menu_action run_install_command
                 pause_menu
                 ;;
             2)
                 log_progress "Starting uninstall..."
-                run_uninstall_command || true
+                menu_action run_uninstall_command
                 pause_menu
                 ;;
             3)
-                run_command_from_menu start || true
+                menu_action run_command_from_menu start
                 pause_menu
                 ;;
             4)
-                run_command_from_menu stop || true
+                menu_action run_command_from_menu stop
                 pause_menu
                 ;;
             5)
-                run_command_from_menu restart || true
+                menu_action run_command_from_menu restart
                 pause_menu
                 ;;
             6)
-                run_command_from_menu status || true
+                menu_action run_command_from_menu status
                 pause_menu
                 ;;
             7)
                 log_info "Showing recent logs (use: ./setup.sh logs -f to follow)..."
-                run_command_from_menu logs || true
+                menu_action run_command_from_menu logs
                 pause_menu
                 ;;
             8)
-                run_command_from_menu update || true
+                menu_action run_command_from_menu update
                 pause_menu
                 ;;
             9)
-                run_command_from_menu backup || true
+                menu_action run_command_from_menu backup
                 pause_menu
                 ;;
             10)
                 read -r -p "Backup archive path (leave empty for prompt): " restore_path
-                run_command_from_menu restore "${restore_path}" || true
+                menu_action run_command_from_menu restore "${restore_path}"
                 pause_menu
                 ;;
             11)
-                run_command_from_menu update-urls || true
+                menu_action run_command_from_menu update-urls
                 pause_menu
                 ;;
             12)
-                run_command_from_menu reset-password || true
+                menu_action run_command_from_menu reset-password
                 pause_menu
                 ;;
             13)
-                run_command_from_menu diagnose || true
+                menu_action run_command_from_menu diagnose
                 pause_menu
                 ;;
             14)
-                run_command_from_menu manage-access || true
+                menu_action run_command_from_menu manage-access
+                pause_menu
+                ;;
+            15)
+                menu_action run_command_from_menu check-update
+                pause_menu
+                ;;
+            16)
+                menu_action run_command_from_menu auto-update status
+                if prompt_yes_no "Enable/reconfigure auto-update?" "N"; then
+                    menu_action run_command_from_menu auto-update enable
+                elif prompt_yes_no "Disable auto-update?" "N"; then
+                    menu_action run_command_from_menu auto-update disable
+                fi
                 pause_menu
                 ;;
             0)

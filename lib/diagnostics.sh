@@ -12,7 +12,28 @@ get_compose_env_value() {
     grep -E "^[[:space:]]*${key}:" "${compose_file}" 2>/dev/null | head -n1 | sed -E 's/^[^:]*:[[:space:]]*//' | tr -d "'\""
 }
 
+check_public_url_reachable() {
+    local url="${MINIO_SERVER_URL%/}/minio/health/live"
+    local rc=0
+
+    # The Console talks to MINIO_SERVER_URL from inside the container. If the
+    # server cannot reach its own public URL (no hairpin NAT / split DNS),
+    # Console login fails even though the credentials are correct.
+    docker exec "${MINIO_CONTAINER_NAME}" sh -c \
+        'command -v curl >/dev/null 2>&1 || exit 99; curl -fsS --max-time 5 -o /dev/null "$1"' sh "${url}" \
+        &>/dev/null || rc=$?
+
+    if [[ "${rc}" -eq 99 ]]; then
+        curl -fsS --max-time 5 -o /dev/null "${url}" &>/dev/null
+        return $?
+    fi
+
+    return "${rc}"
+}
+
 cmd_diagnose() {
+    local show_password="false"
+    [[ "${1:-}" == "--show-password" ]] && show_password="true"
     local running=0
     local container_user container_pass_file
     local login_url
@@ -44,6 +65,19 @@ cmd_diagnose() {
     if [[ -f "${PROJECT_ROOT}/.env" ]]; then
         log_success ".env exists (username: ${MINIO_ROOT_USER})"
     fi
+
+    echo "  Image: ${MINIO_IMAGE}"
+    if [[ "${MINIO_IMAGE}" == *"minio/minio"* ]]; then
+        log_warn "Upstream minio/minio is archived and gets no security fixes."
+        log_info "Switch to Silo (maintained fork) with: ./setup.sh update"
+    fi
+    if image_is_unpinned "${MINIO_IMAGE}"; then
+        log_warn "Image is not pinned to a version tag. Pin it with: ./setup.sh update"
+    fi
+
+    echo ""
+    log_step "System clock"
+    check_time_sync
 
     echo ""
     log_step "Data volume"
@@ -92,24 +126,32 @@ cmd_diagnose() {
         log_warn "Public Console URL is set — log in here (NOT via http://IP:${MINIO_CONSOLE_PORT}):"
         echo "  ${login_url}"
     elif [[ "${MINIO_EXPOSE_PORTS}" == "true" ]]; then
-        login_url="http://$(get_primary_ip):${MINIO_CONSOLE_PORT}"
+        login_url="http://$(display_host):${MINIO_CONSOLE_PORT}"
         echo "  Console: ${login_url}"
-        echo "  API:     http://$(get_primary_ip):${MINIO_API_PORT}"
+        echo "  API:     http://$(display_host):${MINIO_API_PORT}"
     else
         log_info "Ports not exposed to host — access Console via Docker network or reverse proxy"
     fi
 
     if [[ -n "${MINIO_SERVER_URL:-}" ]]; then
         echo "  Public API URL: ${MINIO_SERVER_URL}"
+        if [[ "${running}" -eq 1 ]]; then
+            if check_public_url_reachable; then
+                log_success "Public API URL is reachable from the server"
+            else
+                log_error "Public API URL is NOT reachable from the server/container"
+                log_warn "Console login will fail. Fix DNS/hairpin NAT/reverse proxy, or clear URLs with: ./setup.sh update-urls"
+            fi
+        fi
     fi
 
     echo ""
     log_step "Credential test (API via mc)"
     if [[ "${running}" -eq 1 ]]; then
         if verify_root_credentials; then
-            log_success "API accepts username/password from .env"
+            log_success "API accepts the configured username/password"
         else
-            log_error "API rejected credentials from .env"
+            log_error "API rejected the configured credentials"
             echo ""
             log_warn "Most common fixes:"
             echo "  1. ./setup.sh reset-password   — reset IAM and apply .env credentials"
@@ -129,8 +171,12 @@ cmd_diagnose() {
     fi
 
     echo ""
-    echo "Credentials in .env (for Console login):"
+    echo "Console login:"
     echo "  Username: ${MINIO_ROOT_USER}"
-    echo "  Password: ${MINIO_ROOT_PASSWORD}"
+    if [[ "${show_password}" == "true" ]]; then
+        echo "  Password: ${MINIO_ROOT_PASSWORD}"
+    else
+        echo "  Password: (hidden — stored in secrets/root_password; use: ./setup.sh diagnose --show-password)"
+    fi
     echo ""
 }

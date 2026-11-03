@@ -2,27 +2,46 @@
 # Validation helpers for system, ports, paths, and credentials.
 
 validate_ubuntu_version() {
-    log_step "Checking Ubuntu version..."
+    log_step "Checking OS version..."
 
     if [[ ! -f /etc/os-release ]]; then
-        die "Cannot detect OS. Ubuntu Server 22.04+ is required."
+        die "Cannot detect OS. Ubuntu 22.04+ or Debian 12+ is required."
     fi
 
+    local os_id os_version major
     # shellcheck disable=SC1091
-    source /etc/os-release
+    os_id="$(. /etc/os-release && echo "${ID:-unknown}")"
+    # shellcheck disable=SC1091
+    os_version="$(. /etc/os-release && echo "${VERSION_ID:-0}")"
+    major="${os_version%%.*}"
+    [[ "${major}" =~ ^[0-9]+$ ]] || major=0
 
-    if [[ "${ID:-}" != "ubuntu" ]]; then
-        die "Unsupported OS: ${ID:-unknown}. Ubuntu Server 22.04+ is required."
+    case "${os_id}" in
+        ubuntu) [[ "${major}" -ge 22 ]] || die "Ubuntu ${os_version} detected. Ubuntu 22.04+ is required." ;;
+        debian) [[ "${major}" -ge 12 ]] || die "Debian ${os_version} detected. Debian 12+ is required." ;;
+        *) die "Unsupported OS: ${os_id}. Ubuntu 22.04+ or Debian 12+ is required." ;;
+    esac
+
+    log_success "${os_id} ${os_version} detected."
+}
+
+# S3 request signatures are rejected when client/server clocks differ by more
+# than ~15 minutes, which shows up as confusing "RequestTimeTooSkewed" errors.
+check_time_sync() {
+    local synced=""
+
+    if command_exists timedatectl; then
+        synced=$(timedatectl show -p NTPSynchronized --value 2>/dev/null || true)
     fi
 
-    local version_id="${VERSION_ID:-0}"
-    local major="${version_id%%.*}"
-
-    if [[ "${major}" -lt 22 ]]; then
-        die "Ubuntu ${version_id} detected. Ubuntu Server 22.04+ is required."
-    fi
-
-    log_success "Ubuntu ${version_id} detected."
+    case "${synced}" in
+        yes) log_success "System clock is NTP-synchronized." ;;
+        no)
+            log_warn "System clock is NOT NTP-synchronized. S3 clients fail if clock skew exceeds ~15 minutes."
+            log_warn "Enable with: sudo timedatectl set-ntp true"
+            ;;
+        *) log_info "Could not determine NTP sync status (timedatectl unavailable)." ;;
+    esac
 }
 
 validate_dependencies() {
@@ -31,7 +50,7 @@ validate_dependencies() {
     local missing=()
     local dep
 
-    for dep in curl openssl systemctl; do
+    for dep in curl tar systemctl; do
         if ! command_exists "${dep}"; then
             missing+=("${dep}")
         fi
@@ -41,7 +60,7 @@ validate_dependencies() {
         die "Missing required dependencies: ${missing[*]}. Install them with: sudo apt-get install -y ${missing[*]}"
     fi
 
-    log_success "Required dependencies present (curl, openssl, systemctl)."
+    log_success "Required dependencies present (curl, tar, systemctl)."
 }
 
 validate_docker_compose() {
@@ -146,43 +165,49 @@ validate_password() {
 
 validate_storage_path() {
     local path="$1"
+    local parent
 
     log_step "Validating storage path: ${path}"
+    assert_safe_data_path "${path}"
 
     if [[ -e "${path}" && ! -d "${path}" ]]; then
         die "Storage path exists but is not a directory: ${path}"
     fi
 
-    local parent
     parent=$(dirname "${path}")
-
     if [[ ! -d "${parent}" ]]; then
         log_info "Creating parent directory: ${parent}"
-        if [[ "${EUID}" -eq 0 ]]; then
-            mkdir -p "${parent}" || die "Failed to create parent directory: ${parent}"
-        else
-            sudo mkdir -p "${parent}" || die "Failed to create parent directory: ${parent}"
-        fi
+        run_as_root mkdir -p "${parent}" || die "Failed to create parent directory: ${parent}"
     fi
 
     if [[ ! -d "${path}" ]]; then
-        log_info "Creating storage directory: ${path}"
-        if [[ "${EUID}" -eq 0 ]]; then
-            mkdir -p "${path}" || die "Failed to create storage directory: ${path}"
-        else
-            sudo mkdir -p "${path}" || die "Failed to create storage directory: ${path}"
-        fi
+        # Objects are stored as plain files: keep them private to root
+        # (the container runs as root). Existing permissions are not changed.
+        log_info "Creating storage directory: ${path} (mode 700)"
+        run_as_root install -d -m 700 "${path}" || die "Failed to create storage directory: ${path}"
+    elif [[ "$(stat -c '%a' "${path}" 2>/dev/null)" =~ [1-7]$ ]]; then
+        log_warn "Storage path ${path} is readable by other local users (mode $(stat -c '%a' "${path}"))."
+        log_warn "Consider: sudo chmod 700 ${path}"
     fi
 
-    if [[ ! -w "${path}" ]]; then
-        if [[ "${EUID}" -eq 0 ]]; then
-            chmod 755 "${path}" || die "Storage path is not writable: ${path}"
-        else
-            sudo chmod 755 "${path}" || die "Storage path is not writable: ${path}"
-        fi
-    fi
+    log_success "Storage path is valid."
+}
 
-    log_success "Storage path is valid and writable."
+# Two MinIO servers on the same directory corrupt data.
+assert_data_path_not_in_use() {
+    local path="${1%/}"
+    local id name sources
+
+    while read -r id; do
+        [[ -n "${id}" ]] || continue
+        name=$(docker inspect --format '{{.Name}}' "${id}" 2>/dev/null)
+        name="${name#/}"
+        [[ "${name}" == "${MINIO_CONTAINER_NAME}" ]] && continue
+        sources=$(docker inspect --format '{{range .Mounts}}{{.Source}}{{"\n"}}{{end}}' "${id}" 2>/dev/null)
+        if grep -qxF "${path}" <<< "${sources}"; then
+            die "Data path ${path} is already used by container '${name}'. Use another path or stop that container."
+        fi
+    done < <(docker ps -aq 2>/dev/null)
 }
 
 validate_disk_space() {
@@ -356,5 +381,6 @@ run_pre_install_validation() {
     validate_storage_path "${MINIO_DATA_PATH}"
     validate_disk_space "${MINIO_DATA_PATH}" 1024
     validate_ram 512
+    check_time_sync
     validate_exposed_ports
 }

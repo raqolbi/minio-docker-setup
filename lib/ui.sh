@@ -20,6 +20,7 @@ show_install_complete() {
     echo -e "${GREEN}${BOLD}=========================================${NC}"
     echo ""
     echo -e "  ${BOLD}Container Name:${NC}    ${MINIO_CONTAINER_NAME}"
+    echo -e "  ${BOLD}Image:${NC}             ${MINIO_IMAGE}"
     echo -e "  ${BOLD}Storage Path:${NC}      ${MINIO_DATA_PATH}"
     echo -e "  ${BOLD}Docker Network:${NC}    ${MINIO_NETWORK:-minio-network}"
     echo -e "  ${BOLD}Expose Ports:${NC}      ${MINIO_EXPOSE_PORTS}"
@@ -145,11 +146,37 @@ collect_install_config() {
     done
     echo "--------------------------------"
 
-    MINIO_DATA_PATH=$(prompt_default "Storage Path" "/opt/minio/data")
+    log_info "Server image: latest published PGSTY Silo release (resolved after Docker checks)."
     echo "--------------------------------"
 
+    while true; do
+        MINIO_DATA_PATH=$(prompt_default "Storage Path" "/opt/minio/data")
+        MINIO_DATA_PATH="${MINIO_DATA_PATH%/}"
+        # Validate in a subshell so a bad path re-prompts instead of exiting.
+        if ( assert_safe_data_path "${MINIO_DATA_PATH}" ); then
+            break
+        fi
+    done
+    echo "--------------------------------"
+
+    MINIO_BIND_ADDRESS="0.0.0.0"
     if prompt_yes_no "Expose MinIO to Host?" "Y"; then
         MINIO_EXPOSE_PORTS="true"
+
+        log_info "Bind address: 0.0.0.0 = all interfaces (public), 127.0.0.1 = this host only"
+        log_info "(use 127.0.0.1 when a reverse proxy on this server terminates HTTPS)."
+        while true; do
+            MINIO_BIND_ADDRESS=$(prompt_default "Bind Address" "0.0.0.0")
+            if [[ "${MINIO_BIND_ADDRESS}" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+                break
+            fi
+            log_error "Enter an IPv4 address, e.g. 0.0.0.0 or 127.0.0.1"
+        done
+
+        if [[ "${MINIO_BIND_ADDRESS}" == "0.0.0.0" ]]; then
+            log_warn "Docker-published ports bypass UFW/iptables INPUT rules — they will be reachable"
+            log_warn "from the network even if UFW denies them. Traffic is plain HTTP (no TLS)."
+        fi
 
         while true; do
             MINIO_API_PORT=$(prompt_default "API Port" "9000")
@@ -175,7 +202,12 @@ collect_install_config() {
     fi
     echo "--------------------------------"
 
-    MINIO_ROOT_USER=$(prompt_default "Root Username" "minioadmin")
+    while true; do
+        MINIO_ROOT_USER=$(prompt_default "Root Username" "minioadmin")
+        if validate_root_username "${MINIO_ROOT_USER}"; then
+            break
+        fi
+    done
     echo "--------------------------------"
 
     echo "Password options:"
@@ -219,6 +251,7 @@ collect_install_config() {
     collect_public_url_config "false"
 
     echo ""
+    export MINIO_BIND_ADDRESS
     export MINIO_CONTAINER_NAME MINIO_DATA_PATH MINIO_EXPOSE_PORTS
     export MINIO_API_PORT MINIO_CONSOLE_PORT MINIO_ROOT_USER MINIO_ROOT_PASSWORD
     export MINIO_BUCKETS MINIO_PUBLIC_BUCKETS MINIO_SETUP_APP_USER MINIO_APP_USER MINIO_APP_PASSWORD
@@ -251,7 +284,7 @@ show_reset_credentials_complete() {
         log_warn "Use the public Console URL above to log in."
         log_warn "If login still fails, run: ./setup.sh update-urls and clear public URLs."
     elif [[ "${MINIO_EXPOSE_PORTS:-false}" == "true" ]]; then
-        log_info "Console URL: http://$(get_primary_ip):${MINIO_CONSOLE_PORT}"
+        log_info "Console URL: http://$(display_host):${MINIO_CONSOLE_PORT}"
     fi
     echo ""
 }
@@ -261,9 +294,8 @@ collect_reset_credentials() {
 
     echo -e "  ${BOLD}Current username:${NC} ${MINIO_ROOT_USER}"
     echo ""
-    log_warn "This resets MinIO root login by clearing the config store on disk."
-    log_warn "A backup of config is saved under .minio.sys/config.bak-* before removal."
-    log_warn "Buckets and object data are kept."
+    log_info "This changes the root username/password and recreates the container."
+    log_info "Buckets, objects, IAM users, policies and access keys are kept."
     echo ""
 
     if ! confirm "Proceed with root credential reset?" "N"; then
@@ -338,9 +370,11 @@ Commands:
   stop        Stop MinIO containers
   restart     Restart MinIO containers
   logs        Show recent container logs (add -f to follow)
-  diagnose    Troubleshoot login and credential issues
+  diagnose    Troubleshoot login and credential issues (--show-password to print it)
   status      Show container and health status
-  update      Pull latest MinIO image and recreate containers
+  update      Upgrade to the latest Silo release (optionally: update <image>)
+  check-update  Check whether a newer Silo release is available
+  auto-update   Scheduled update check/apply: enable | disable | status
   update-urls   Update public API and Console URLs (MINIO_SERVER_URL)
   reset-password Reset root username and password (keeps bucket data)
   manage-access Configure buckets, public access, and application user
